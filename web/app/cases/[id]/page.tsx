@@ -191,7 +191,10 @@ const HELD_TEXT = /held for your go-ahead|say go and I(?:'|’)?ll send|waiting 
 const isFoGo = (e: CaseEvent) => e.kind === "approval_requested" && typeof e.proposed_action === "object" && e.proposed_action?.kind === "fo_go";
 const isHoldingStep = (e: CaseEvent) => /^Fo is holding the email/i.test(e.title);
 const isFollowUp = (e: CaseEvent) => e.kind === "follow_up_scheduled" || /^Follow-up scheduled/i.test(e.title);
-const isConfirmedSentStep = (e: CaseEvent) => /^Fo confirmed it sent the email$/i.test(e.title.trim());
+// Backend send confirmation: the agreed title, or a non-simulated email_sent step (what :8020 actually
+// emitted on case_cbd0d1cf1a: kind email_sent, actor human, title "Dhyey gave the go-ahead directly in Fo, ...").
+const isConfirmedSentStep = (e: CaseEvent) => /^Fo confirmed it sent the email$/i.test(e.title.trim())
+  || (String(e.kind) === "email_sent" && e.mock !== true && !/^\[MOCK\]/i.test(e.title));
 const isUnconfirmedStep = (e: CaseEvent) => /^Couldn(?:'|’)?t confirm Fo sent the email/i.test(e.title);
 type SendState = "sent" | "held" | "drafted" | "unconfirmed";
 

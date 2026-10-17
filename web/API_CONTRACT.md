@@ -156,6 +156,7 @@ Send state of a live "Fo replied" step (never says "sent" without a reason):
 | `Couldn't confirm Fo sent the email` | `escalated_to_human` | Unconfirmed: neutral "Fo drafted email to test bank inbox" plus a gray UNCONFIRMED badge. Never sent and never HELD, whatever Fo's text says. The step itself renders as a normal escalated step. |
 | `Fo confirmed it sent the email` | `note` (actor `fo` or `system`) | Sent. Overrides HELD, unconfirmed and the old-case exception for every earlier Fo reply. The hold banner and header badge hide. The step renders green; its detail goes through `maskEmails`. |
 | `Follow-up scheduled` | `follow_up_scheduled` | Sent (confirmed send) |
+| any title, kind `email_sent`, not `mock` / `[MOCK]` | `email_sent` | Treated exactly like `Fo confirmed it sent the email`. :8020 emitted the case_cbd0d1cf1a confirmation this way (actor `human`, title "Dhyey gave the go-ahead directly in Fo, and Fo confirmed it sent at …") instead of the agreed title. |
 
 "Sent to test bank inbox" shows only with backend confirmation: a later `Fo confirmed it sent the email`, a later `Follow-up scheduled`
 (before the next Fo reply), or case status `awaiting_reply` for the latest reply. The text fallback above only applies to old cases
