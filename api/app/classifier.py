@@ -45,7 +45,8 @@ def classify(text: str) -> dict:
     import anthropic
     client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
     msg = client.messages.create(
-        model=config.CLAUDE_MODEL, max_tokens=800, system=SYSTEM,
+        model=config.CLAUDE_MODEL, max_tokens=800,
+        system=SYSTEM + f"\nToday's date is {__import__('datetime').date.today().isoformat()}; dates without a year are in the most recent past occurrence.",
         messages=[{"role": "user", "content": f"<forwarded_content>\n{text}\n</forwarded_content>"}],
     )
     raw = "".join(b.text for b in msg.content if getattr(b, "type", "") == "text")

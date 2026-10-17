@@ -62,6 +62,11 @@ def approve(case_id: str, body: ApprovalIn):
     except ValueError as e:
         raise HTTPException(409, str(e))
 
+@app.get("/api/audit")
+def audit(case_id: Optional[str] = None):
+    from . import trust_bridge
+    return trust_bridge.audit_rows(case_id)
+
 @app.get("/api/stream")
 async def stream(request: Request):
     q = bus.subscribe()

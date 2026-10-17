@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 from . import config, db, bus
 from .classifier import classify
 from .fo_client import FoClient, FoError
+from . import trust_bridge as tb
 
 log = logging.getLogger("pipeline")
 
@@ -97,8 +98,10 @@ def build_fo_request(case) -> str:
 
 def request_approval(case_id):
     c = db.get_case(case_id)
-    action = {"channel": "email", "to": config.FO_TEST_TARGET or None, "acting_as": c["counterparty"],
+    target = tb.outbound_target()
+    action = {"channel": "email", "to": target, "acting_as": c["counterparty"],
               "message": build_fo_request(c), "spend_cents": 0}
+    action["approval_id"] = tb.call("request_approval", case_id, "email", target, action["message"], 0)
     emit(case_id, "approval_requested", "Approve Fo to contact the counterparty?", "agent",
          detail="Nothing is sent until you approve.", proposed_action=action, pending=True)
     set_status(case_id, "awaiting_approval")
@@ -107,6 +110,7 @@ def decide(case_id, event_id, decision, note=None):
     ev = db.get_event(event_id)
     if not ev or ev["case_id"] != case_id or ev["kind"] != "approval_requested" or not ev.get("pending"):
         raise ValueError("no pending approval with that id on this case")
+    tb.call("decide", ev["proposed_action"]["approval_id"], "approved" if decision == "approve" else "rejected")
     db.update_event_payload(event_id, pending=False)
     bus.publish("case_event", db.get_event(event_id))
     if decision == "reject":
@@ -119,6 +123,13 @@ def decide(case_id, event_id, decision, note=None):
 
 def contact(case_id, action):
     try:
+        try:
+            # Trust gate: must pass immediately before any outbound Fo action (ask_fo / start_fo_call).
+            tb.call("authorize", action.get("approval_id"), case_id, "email", action["to"], action["message"],
+                    action.get("spend_cents", 0))
+        except tb.BLOCKED as e:
+            emit(case_id, "note", "Blocked by trust gate", "agent", detail=f"{type(e).__name__}: {e}")
+            set_status(case_id, "escalated"); return
         if config.FO_MOCK:
             return _mock_contact(case_id, action)
         if not config.FO_TEST_TARGET:
@@ -126,14 +137,27 @@ def contact(case_id, action):
         fo = FoClient()
         def prog(p, conv):
             emit(case_id, "note", "Fo is working", "fo", detail=p, fo_conversation_id=conv)
-        reply = fo.ask_and_wait(action["message"], new=True, on_progress=prog)
-        conv = reply.get("conversationId")
+        first = fo.ask(action["message"], new=True)
+        conv = first.get("conversationId")
         db.update_case(case_id, fo_conversation_id=conv)
-        st = reply.get("status")
-        if st in ("failed", "timeout"):
-            emit(case_id, "note", f"Fo turn {st}", "fo", detail=reply.get("text") or reply.get("progress"),
-                 fo_conversation_id=conv)
-            set_status(case_id, "failed" if st == "failed" else "escalated"); return
+        tb.call("log", case_id, "fo", "ask_fo_sent", {"conversationId": conv, "status": first.get("status")})
+        def get_reply():
+            r = fo.poll(conv) if get_reply.n else first
+            get_reply.n += 1
+            if r.get("status") == "complete": r["status"] = "completed"   # /fo tool says complete
+            if r.get("status") == "working" and r.get("progress"): prog(r["progress"], conv)
+            return r
+        get_reply.n = 0
+        state, reply = tb.poll_fo_reply(get_reply, timeout_s=600)
+        tb.call("log", case_id, "fo", "fo_turn_closed", {"state": state, "conversationId": conv})
+        if state in ("fo_failed", "fo_stalled"):
+            emit(case_id, "note", "Fo turn failed" if state == "fo_failed" else "Fo still working after 10 min",
+                 "fo", detail=(reply or {}).get("response") or (reply or {}).get("progress"), fo_conversation_id=conv)
+            set_status(case_id, "failed" if state == "fo_failed" else "escalated"); return
+        if state == "needs_user_input":
+            emit(case_id, "escalated_to_human", "Fo is asking a question", "fo",
+                 detail=reply.get("response") or reply.get("progress"), fo_conversation_id=conv)
+            set_status(case_id, "escalated"); return
         emit(case_id, "email_sent", f"Fo emailed {action.get('to')}", "fo",
              detail=reply.get("text") or reply.get("reply") or reply.get("progress"), fo_conversation_id=conv,
              email={"from": "Fo", "to": action.get("to"), "subject": "Claim filing", "body": action["message"]})
@@ -145,6 +169,7 @@ def contact(case_id, action):
         set_status(case_id, "failed")
 
 def _mock_contact(case_id, action):
+    tb.call("log", case_id, "fo", "ask_fo_sent", {"mock": True, "target": action.get("to")})
     step = config.MOCK_STEP_SECONDS
     time.sleep(step)
     emit(case_id, "email_sent", "[MOCK] Fo emailed the counterparty", "fo", mock=True,
