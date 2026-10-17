@@ -1,6 +1,6 @@
-// MOCK DATA LAYER — in-memory store + simulator. Never places real calls, emails or payments.
+// MOCK DATA LAYER — in-memory store + simulator. Email-only to test stand-in addresses; never places calls, sends real email or pays.
 import { createHash } from "node:crypto";
-import type { Case, CaseEvent, CaseWithEvents, CreateCaseBody, ApprovalBody, CaseType, AuditRow, AuditResponse } from "./types";
+import type { Case, CaseEvent, CaseWithEvents, CreateCaseBody, ApprovalBody, CaseType, AuditRow, AuditResponse, ProposedAction } from "./types";
 
 type Listener = (msg: { event: "case_updated"; data: Case } | { event: "case_event"; data: CaseEvent }) => void;
 
@@ -92,20 +92,37 @@ function classify(text: string): { type: CaseType; counterparty: string; amount_
   if (/(ups|fedex|usps|dhl|package|parcel|delivery|delivered|tracking)/.test(t)) { type = "package_claim"; confidence = 0.9; }
   else if (/(insurance|lemonade|state farm|geico|allstate|policy|stolen|theft|damage)/.test(t)) { type = "insurance_claim"; confidence = 0.88; }
   else if (/(charge|charged|card|refund|dispute|merchant|statement)/.test(t)) { type = "card_dispute"; confidence = 0.93; }
-  const cp = KNOWN.find((k) => t.includes(k.toLowerCase())) ?? (type === "package_claim" ? "Carrier" : type === "insurance_claim" ? "Insurer" : "Card issuer");
+  else { type = "other"; confidence = 0.58; }
+  const cp = KNOWN.find((k) => t.includes(k.toLowerCase())) ?? (type === "package_claim" ? "Carrier" : type === "insurance_claim" ? "Insurer" : type === "other" ? "—" : "Card issuer");
   const m = text.match(/\$\s?([\d,]+(?:\.\d{1,2})?)/);
   const amount_cents = m ? Math.round(parseFloat(m[1].replace(/,/g, "")) * 100) : 0;
   const amt = amount_cents ? ` $${(amount_cents / 100).toFixed(2)}` : "";
   const merchant = text.match(/\bat ([A-Z][\w'&]*(?: [A-Z][\w'&]*){0,3})/)?.[1];
-  const title = type === "card_dispute" ? (merchant ? `Disputed charge at ${merchant}` : `Disputed charge${amt}`) : type === "package_claim" ? `Lost / damaged package${amt}` : `Insurance claim${amt}`;
+  const title = type === "card_dispute" ? (merchant ? `Disputed charge at ${merchant}` : `Disputed charge${amt}`) : type === "package_claim" ? `Lost / damaged package${amt}` : type === "other" ? "Out-of-scope request" : `Insurance claim${amt}`;
   return { type, counterparty: cp, amount_cents, title, confidence };
 }
 
-function proposedAction(c: Case) {
-  const amt = `$${((c.amount_cents ?? 0) / 100).toFixed(2)}`;
-  if (c.type === "card_dispute") return `Call ${c.counterparty} disputes line, request provisional credit of ${amt}`;
-  if (c.type === "package_claim") return `Call ${c.counterparty} claims line, file a lost-package claim for ${amt}`;
-  return `Email ${c.counterparty} claims team, open a claim for ${amt} with attached evidence`;
+// Demo contacts are EMAIL ONLY and always go to obvious test stand-in addresses, never a real business.
+const FROM = "fo-standin@test.example";
+const STANDIN: Record<CaseType, string> = {
+  card_dispute: "bank-standin@test.example",
+  package_claim: "carrier-standin@test.example",
+  insurance_claim: "insurer-standin@test.example",
+  other: "standin@test.example",
+};
+
+function money(cents: number | null) { return `$${((cents ?? 0) / 100).toFixed(2)}`; }
+
+function proposedAction(c: Case): ProposedAction {
+  const amt = money(c.amount_cents);
+  const summary =
+    c.type === "card_dispute" ? `Email ${c.counterparty} disputes, request provisional credit of ${amt}`
+    : c.type === "package_claim" ? `Email ${c.counterparty} claims, file a lost-package claim for ${amt}`
+    : `Email ${c.counterparty} claims team, open a claim for ${amt} with attached evidence`;
+  return {
+    channel: "email", to: STANDIN[c.type], acting_as: `${c.counterparty} (test stand-in)`, spend_cents: 0, summary,
+    message: `Open a ${c.type.replace("_", " ")} for ${amt} regarding "${c.title}". Attach the evidence on file and ask for a reference number.`,
+  };
 }
 
 // ---------- public mutations ----------
@@ -119,13 +136,19 @@ export function createCase(body: CreateCaseBody): Case {
   s.cases.set(id, c); s.events.set(id, []);
   emit({ event: "case_updated", data: c });
   const info = classify(`${body.text} ${(body.filenames ?? []).join(" ")}`);
-  const label = { card_dispute: "Card dispute", insurance_claim: "Insurance claim", package_claim: "Package claim" }[info.type];
+  const label = { card_dispute: "Card dispute", insurance_claim: "Insurance claim", package_claim: "Package claim", other: "Out of scope" }[info.type];
   schedule([
     () => {
       patchCase(id, { ...info, status: "classified" });
-      addEvent(id, { kind: "classified", actor: "agent", title: `Classified as ${label}`, detail: `Counterparty: ${info.counterparty} · Amount: $${(info.amount_cents / 100).toFixed(2)} · Source: ${body.source}` });
+      addEvent(id, { kind: "classified", actor: "agent", title: `Classified as ${label}`, detail: `Counterparty: ${info.counterparty} · Amount: ${money(info.amount_cents)} · Source: ${body.source}` });
     },
     () => {
+      if (info.type === "other") {
+        patchCase(id, { status: "escalated" });
+        addEvent(id, { kind: "escalated_to_human", actor: "agent", title: "Out of scope — handed to a human EA",
+          detail: "The agent only handles card disputes, package claims and insurance claims. Nothing was sent." });
+        return;
+      }
       if (INJECTION.test(body.text)) {
         patchCase(id, { status: "escalated" });
         addEvent(id, { kind: "escalated_to_human", actor: "agent", title: "Escalated to a human EA — possible prompt injection",
@@ -134,14 +157,15 @@ export function createCase(body: CreateCaseBody): Case {
       }
       patchCase(id, { status: "gathering_evidence" });
       const files = body.filenames?.length ? body.filenames.join(", ") : "pasted text";
-      addEvent(id, { kind: "evidence_gathered", actor: "agent", title: "Evidence gathered", detail: `Extracted key facts from ${files}. Matched against statement and order history.` });
+      addEvent(id, { kind: "evidence_gathered", actor: "agent", title: "Evidence gathered", detail: `Extracted key facts from ${files}.` });
     },
     () => {
       const cur = store().cases.get(id)!;
       if (cur.status === "escalated") return;
       patchCase(id, { status: "awaiting_approval" });
-      audit(id, "agent", "approval_requested", { action: cur.type === "insurance_claim" ? "email" : "call", target: cur.counterparty });
-      addEvent(id, { kind: "approval_requested", actor: "agent", title: "Approval requested", pending: true, proposed_action: proposedAction(cur), detail: "Fo will act on your behalf only after you approve. No payment will be made." });
+      const pa = proposedAction(cur);
+      audit(id, "agent", "approval_requested", { action: "email", target: pa.to });
+      addEvent(id, { kind: "approval_requested", actor: "agent", title: "Approval requested", pending: true, proposed_action: pa, detail: "Fo will act on your behalf only after you approve. Nothing is sent and no money is spent until then." });
     },
   ]);
   return c;
@@ -159,41 +183,29 @@ export function decide(case_id: string, body: ApprovalBody): CaseEvent | { error
     patchCase(case_id, { status: "rejected" });
     return r;
   }
-  const a = addEvent(case_id, { kind: "approved", actor: "human", title: "Approved by you", detail: body.note || (typeof ev.proposed_action === "string" ? ev.proposed_action : undefined) });
+  const summary = typeof ev.proposed_action === "string" ? ev.proposed_action : ev.proposed_action?.summary;
+  const a = addEvent(case_id, { kind: "approved", actor: "human", title: "Approved by you", detail: body.note || summary });
   patchCase(case_id, { status: "contacting" });
-  audit(case_id, "system", "fo_ask_authorized", { target: c.counterparty });
+  audit(case_id, "system", "fo_ask_authorized", { target: STANDIN[c.type] });
   runResolution(store().cases.get(case_id)!);
   return a;
 }
 
 function runResolution(c: Case) {
-  const id = c.id; const amt = `$${((c.amount_cents ?? 0) / 100).toFixed(2)}`; const conv = `fo_conv_${Math.random().toString(36).slice(2, 10)}`;
-  const rep = c.type === "card_dispute" ? "Dana (Disputes)" : c.type === "package_claim" ? "Marcus (Claims)" : "Claims rep";
-  const domain = (c.counterparty ?? "").toLowerCase().replace(/[^a-z]/g, "") || "counterparty";
+  const id = c.id; const amt = money(c.amount_cents); const conv = `fo_conv_${Math.random().toString(36).slice(2, 10)}`;
+  const to = STANDIN[c.type]; const ref = `TEST-${Math.floor(10000 + Math.random() * 89999)}`;
   schedule([
-    () => { audit(id, "fo", "ask_fo_sent", { mock: true, channel: "call", target: c.counterparty }); addEvent(id, {
-      kind: "call_placed", actor: "fo", title: `Fo called ${c.counterparty}`, detail: "Call completed · 4m 12s", fo_conversation_id: conv,
-      transcript: [
-        { speaker: rep, text: `Thanks for calling ${c.counterparty}, how can I help?` },
-        { speaker: "Fo", text: `Hi, I'm calling on behalf of my client Dhyey Desai about a ${c.type.replace("_", " ")} for ${amt}.` },
-        { speaker: rep, text: "Sure, can you verify the last four digits and the date?" },
-        { speaker: "Fo", text: "Last four 4417, transaction on October 9th. Supporting documents are ready to send." },
-        { speaker: rep, text: `Got it. I've opened a case and you'll get a confirmation email shortly.` },
-        { speaker: "Fo", text: "Great, could you share the reference number? I'll follow up by email with evidence." },
-        { speaker: rep, text: "Reference is DSP-55821. Expect an update within 2 business days." },
-      ],
-    }); },
-    () => { patchCase(id, { status: "awaiting_reply" }); audit(id, "fo", "ask_fo_sent", { mock: true, channel: "email", target: `claims@${domain}.example` }); addEvent(id, {
-      kind: "email_sent", actor: "fo", title: `Fo emailed ${c.counterparty}`, fo_conversation_id: conv,
-      email: { from: "dhyey@fo-agent.example", to: `claims@${domain}.example`, subject: `Ref DSP-55821 — ${c.title}`,
-        body: `Hello,\n\nFollowing up on today's call (ref DSP-55821). Attached are the receipt and supporting screenshots for the ${amt} claim.\n\nPlease confirm once reviewed.\n\nThanks,\nFo, on behalf of Dhyey Desai` },
+    () => { patchCase(id, { status: "awaiting_reply" }); audit(id, "fo", "ask_fo_sent", { mock: true, channel: "email", target: to }); addEvent(id, {
+      kind: "email_sent", actor: "fo", title: `Fo emailed ${c.counterparty} (test stand-in)`, fo_conversation_id: conv,
+      email: { from: FROM, to, subject: `${c.type === "card_dispute" ? "Dispute" : "Claim"}: ${c.title} (${amt})`,
+        body: `Hello,\n\nOn behalf of Dhyey Desai, I'd like to open a ${c.type.replace("_", " ")} for ${amt} regarding "${c.title}". The receipt and supporting screenshots are attached.\n\nPlease confirm receipt and share a reference number.\n\nThanks,\nFo, on behalf of Dhyey Desai` },
     }); },
     () => addEvent(id, {
-      kind: "reply_received", actor: "counterparty", title: `Reply from ${c.counterparty}`,
-      email: { from: `claims@${domain}.example`, to: "dhyey@fo-agent.example", subject: `RE: Ref DSP-55821 — ${c.title}`,
-        body: `Hi,\n\nThank you for the documentation. We've reviewed your claim and approved ${c.type === "card_dispute" ? "a provisional credit" : "reimbursement"} of ${amt}. It should appear within 3–5 business days.\n\nRegards,\n${c.counterparty} Claims` },
+      kind: "reply_received", actor: "counterparty", title: `Reply from ${c.counterparty} (test stand-in)`, fo_conversation_id: conv,
+      email: { from: to, to: FROM, subject: `RE: ${c.type === "card_dispute" ? "Dispute" : "Claim"}: ${c.title} (${amt})`,
+        body: `Hi,\n\nThanks for the documentation. Reference ${ref}. We've approved ${c.type === "card_dispute" ? "a provisional credit" : "reimbursement"} of ${amt}; it should appear within 3–5 business days.\n\nRegards,\n${c.counterparty} (test stand-in)` },
     }),
-    () => { patchCase(id, { status: "follow_up_scheduled" }); addEvent(id, { kind: "follow_up_scheduled", actor: "agent", title: "Follow-up scheduled", detail: "Will verify the credit posted in 5 business days." }); },
+    () => { patchCase(id, { status: "follow_up_scheduled" }); addEvent(id, { kind: "follow_up_scheduled", actor: "agent", title: "Follow-up scheduled", detail: `Will verify the ${amt} credit posted in 5 business days (ref ${ref}).` }); },
     () => { patchCase(id, { status: "resolved" }); addEvent(id, { kind: "resolved", actor: "agent", title: "Resolved", detail: `${amt} recovered.` }); },
   ]);
 }
@@ -206,61 +218,73 @@ function seed(s: Store) {
   const now = Date.now(); const at = (ms: number) => new Date(now - ms).toISOString();
   const sec = (ms: number) => (now - ms) / 1000;
   const A = (cid: string, actor: string, ev: string, d: Record<string, unknown>, ms: number) => audit(cid, actor, ev, d, sec(ms), s);
-  A("case_lemonade", "agent", "approval_requested", { action: "email", target: "claims@lemonade.example" }, 6 * DAY - 2 * HOUR);
+  A("case_lemonade", "agent", "approval_requested", { action: "email", target: STANDIN.insurance_claim }, 6 * DAY - 2 * HOUR);
   A("case_lemonade", "user", "approval_decided", { decision: "approved" }, 5 * DAY + 20 * HOUR);
-  A("case_lemonade", "system", "fo_ask_authorized", { target: "claims@lemonade.example" }, 5 * DAY + 20 * HOUR - 1000);
-  A("case_lemonade", "fo", "ask_fo_sent", { mock: true, channel: "email", target: "claims@lemonade.example" }, 5 * DAY + 19 * HOUR);
-  A("case_ups", "agent", "approval_requested", { action: "call", target: "UPS claims" }, 2 * DAY - 30 * MIN);
+  A("case_lemonade", "system", "fo_ask_authorized", { target: STANDIN.insurance_claim }, 5 * DAY + 20 * HOUR - 1000);
+  A("case_lemonade", "fo", "ask_fo_sent", { mock: true, channel: "email", target: STANDIN.insurance_claim }, 5 * DAY + 19 * HOUR);
+  A("case_ups", "agent", "approval_requested", { action: "email", target: STANDIN.package_claim }, 2 * DAY - 30 * MIN);
   A("case_ups", "user", "approval_decided", { decision: "approved" }, DAY + 20 * HOUR);
-  A("case_ups", "system", "fo_ask_authorized", { target: "UPS claims" }, DAY + 20 * HOUR - 1000);
-  A("case_ups", "fo", "ask_fo_sent", { mock: true, channel: "call", target: "UPS claims" }, DAY + 19 * HOUR);
-  A("case_ups", "fo", "ask_fo_sent", { mock: true, channel: "email", target: "claims@ups.example" }, DAY + 18 * HOUR);
-  A("case_chase", "agent", "approval_requested", { action: "call", target: "Chase disputes line" }, 2 * MIN);
+  A("case_ups", "system", "fo_ask_authorized", { target: STANDIN.package_claim }, DAY + 20 * HOUR - 1000);
+  A("case_ups", "fo", "ask_fo_sent", { mock: true, channel: "email", target: STANDIN.package_claim }, DAY + 19 * HOUR);
+  A("case_chase", "agent", "approval_requested", { action: "email", target: STANDIN.card_dispute }, 2 * MIN);
 
   put({ id: "case_chase", type: "card_dispute", title: "Double charge at Blue Bottle Coffee", counterparty: "Chase", amount_cents: 18420, currency: "USD",
     status: "awaiting_approval", created_at: at(14 * MIN), updated_at: at(2 * MIN), confidence: 0.92, mock: true }, [
     { id: "evt_c1", ts: at(14 * MIN), kind: "classified", actor: "agent", title: "Classified as Card dispute", detail: "Counterparty: Chase · Amount: $184.20 · Source: forward" },
-    { id: "evt_c2", ts: at(9 * MIN), kind: "evidence_gathered", actor: "agent", title: "Evidence gathered", detail: "Two identical $184.20 charges on Oct 9 (Chase Sapphire ••4417). Merchant receipt shows a single order #BB-20931." },
+    { id: "evt_c2", ts: at(9 * MIN), kind: "evidence_gathered", actor: "agent", title: "Extracted 6 evidence fields",
+      evidence: {
+        card_issuer: { value: "Chase", status: "present", citation: "Chase Sapphire Preferred ••4417 — Transaction alert" },
+        merchant: { value: "Blue Bottle Coffee", status: "present", citation: "BLUE BOTTLE COFFEE #0412  $184.20" },
+        transaction_date: { value: "2026-10-09", status: "present", citation: "Oct 9, 2026 at 8:14 AM" },
+        charge_count: { value: "2", status: "present", citation: "2 transactions of $184.20 on Oct 9" },
+        order_id: { value: "BB-20931", status: "present", citation: "Order #BB-20931 (1 item)" },
+        merchant_contacted: { value: null, status: "absent" },
+      } },
     { id: "evt_c3", ts: at(2 * MIN), kind: "approval_requested", actor: "agent", title: "Approval requested", pending: true,
-      proposed_action: "Call Chase disputes line, request provisional credit of $184.20",
-      detail: "Fo will call 1-800-935-9935, cite the duplicate charge and reference receipt #BB-20931. No payment will be made." },
+      proposed_action: {
+        channel: "email", to: STANDIN.card_dispute, acting_as: "Chase disputes (test stand-in)", spend_cents: 0,
+        summary: "Email Chase disputes, request provisional credit of $184.20",
+        message: "Dispute the duplicate $184.20 charge from Blue Bottle Coffee on Oct 9 (card ••4417). Receipt #BB-20931 shows a single order. Request a provisional credit and a reference number.",
+      },
+      detail: "Fo will email the test stand-in for Chase disputes with the receipt attached. Nothing is sent and no money is spent until you approve." },
   ]);
 
   put({ id: "case_ups", type: "package_claim", title: "Lost package — Anker power bank", counterparty: "UPS", amount_cents: 8999, currency: "USD",
     status: "awaiting_reply", created_at: at(2 * DAY), updated_at: at(3 * HOUR), confidence: 0.67, mock: true }, [
     { id: "evt_u1", ts: at(2 * DAY), kind: "classified", actor: "agent", title: "Classified as Package claim", detail: "Counterparty: UPS · Amount: $89.99 · Source: paste" },
-    { id: "evt_u2", ts: at(2 * DAY - 20 * MIN), kind: "evidence_gathered", actor: "agent", title: "Evidence gathered", detail: "Tracking 1Z999AA10123456784 marked delivered Oct 12, no photo proof. Order receipt from Amazon attached." },
-    { id: "evt_u3", ts: at(2 * DAY - 30 * MIN), kind: "approval_requested", actor: "agent", title: "Approval requested", pending: false, proposed_action: "Call UPS claims line, file a lost-package claim for $89.99" },
-    { id: "evt_u4", ts: at(1 * DAY + 20 * HOUR), kind: "approved", actor: "human", title: "Approved by you", detail: "Call UPS claims line, file a lost-package claim for $89.99" },
-    { id: "evt_u5", ts: at(1 * DAY + 19 * HOUR), kind: "call_placed", actor: "fo", title: "Fo called UPS", detail: "Call completed · 6m 48s", fo_conversation_id: "fo_conv_8f3k2q1z",
-      transcript: [
-        { speaker: "UPS IVR", text: "Welcome to UPS. Briefly tell me why you're calling." , ts: "0:00" },
-        { speaker: "Fo", text: "File a claim for a missing package.", ts: "0:06" },
-        { speaker: "Marcus (UPS)", text: "I can help with that. What's the tracking number?", ts: "1:41" },
-        { speaker: "Fo", text: "1Z999AA10123456784. It shows delivered on October 12th, but the recipient never received it and there's no delivery photo.", ts: "1:45" },
-        { speaker: "Marcus (UPS)", text: "I see it was left at the front door. What was the declared value?", ts: "2:10" },
-        { speaker: "Fo", text: "$89.99 — I can email the receipt right after this call.", ts: "2:14" },
-        { speaker: "Marcus (UPS)", text: "Perfect. Claim number is 4417-UPS-2291. Send documents to the address in the confirmation email.", ts: "3:02" },
-        { speaker: "Fo", text: "Thank you, Marcus. I'll send them now.", ts: "3:09" },
-      ] },
-    { id: "evt_u6", ts: at(1 * DAY + 18 * HOUR), kind: "email_sent", actor: "fo", title: "Fo emailed UPS claims", fo_conversation_id: "fo_conv_8f3k2q1z",
-      email: { from: "dhyey@fo-agent.example", to: "claims@ups.example", subject: "Claim 4417-UPS-2291 — supporting documents",
-        body: "Hello,\n\nPer my call with Marcus today, attached is the Amazon receipt ($89.99) and a screenshot of the tracking history for 1Z999AA10123456784.\n\nPlease let me know if anything else is needed.\n\nThanks,\nFo, on behalf of Dhyey Desai" } },
-    { id: "evt_u7", ts: at(3 * HOUR), kind: "note", actor: "agent", title: "Waiting on UPS", detail: "No reply yet. Will follow up tomorrow at 10:00 AM ET if nothing arrives." },
+    { id: "evt_u2", ts: at(2 * DAY - 20 * MIN), kind: "evidence_gathered", actor: "agent", title: "Extracted 5 evidence fields",
+      evidence: {
+        carrier: { value: "UPS", status: "present", citation: "Shipped with UPS — tracking 1Z999AA10123456784" },
+        tracking_number: { value: "1Z999AA10123456784", status: "present", citation: "Tracking: 1Z999AA10123456784" },
+        delivery_status: { value: "Delivered Oct 12 (front door)", status: "ambiguous", citation: "\"Delivered, left at front door\" — no photo, recipient says not received" },
+        declared_value: { value: "$89.99", status: "present", citation: "Order total: $89.99" },
+        delivery_photo: { value: null, status: "absent" },
+      } },
+    { id: "evt_u3", ts: at(2 * DAY - 30 * MIN), kind: "approval_requested", actor: "agent", title: "Approval requested", pending: false,
+      proposed_action: { channel: "email", to: STANDIN.package_claim, acting_as: "UPS claims (test stand-in)", spend_cents: 0, summary: "Email UPS claims, file a lost-package claim for $89.99" } },
+    { id: "evt_u4", ts: at(1 * DAY + 20 * HOUR), kind: "approved", actor: "human", title: "Approved by you", detail: "Email UPS claims, file a lost-package claim for $89.99" },
+    { id: "evt_u5", ts: at(1 * DAY + 19 * HOUR), kind: "email_sent", actor: "fo", title: "Fo emailed UPS claims (test stand-in)", fo_conversation_id: "fo_conv_8f3k2q1z",
+      email: { from: FROM, to: STANDIN.package_claim, subject: "Lost package claim — 1Z999AA10123456784 ($89.99)",
+        body: "Hello,\n\nOn behalf of Dhyey Desai, I'd like to file a lost-package claim. Tracking 1Z999AA10123456784 shows delivered on Oct 12, but the package never arrived and there is no delivery photo.\n\nAttached: the order receipt ($89.99) and a screenshot of the tracking history.\n\nPlease confirm receipt and share a claim number.\n\nThanks,\nFo, on behalf of Dhyey Desai" } },
+    { id: "evt_u6", ts: at(1 * DAY + 2 * HOUR), kind: "reply_received", actor: "counterparty", title: "Reply from UPS claims (test stand-in)", fo_conversation_id: "fo_conv_8f3k2q1z",
+      email: { from: STANDIN.package_claim, to: FROM, subject: "RE: Lost package claim — 1Z999AA10123456784",
+        body: "Hello,\n\nWe've opened claim TEST-2291 and started a trace with the delivering driver. We'll follow up within 2 business days.\n\n— UPS Claims (test stand-in)" } },
+    { id: "evt_u7", ts: at(3 * HOUR), kind: "note", actor: "agent", title: "Waiting on UPS", detail: "No update on claim TEST-2291 yet. Will email a follow-up tomorrow at 10:00 AM ET if nothing arrives." },
   ]);
 
   put({ id: "case_lemonade", type: "insurance_claim", title: "Stolen bike — Trek FX 2", counterparty: "Lemonade", amount_cents: 65000, currency: "USD",
     status: "resolved", created_at: at(6 * DAY), updated_at: at(1 * DAY), confidence: 0.96, mock: true }, [
     { id: "evt_l1", ts: at(6 * DAY), kind: "classified", actor: "agent", title: "Classified as Insurance claim", detail: "Counterparty: Lemonade · Amount: $650.00 · Source: upload" },
     { id: "evt_l2", ts: at(6 * DAY - HOUR), kind: "evidence_gathered", actor: "agent", title: "Evidence gathered", detail: "Police report #NYPD-26-118402, purchase receipt, and 2 photos of the cut lock." },
-    { id: "evt_l3", ts: at(6 * DAY - 2 * HOUR), kind: "approval_requested", actor: "agent", title: "Approval requested", pending: false, proposed_action: "Email Lemonade claims team, open a claim for $650.00 with attached evidence" },
+    { id: "evt_l3", ts: at(6 * DAY - 2 * HOUR), kind: "approval_requested", actor: "agent", title: "Approval requested", pending: false,
+      proposed_action: { channel: "email", to: STANDIN.insurance_claim, acting_as: "Lemonade claims (test stand-in)", spend_cents: 0, summary: "Email Lemonade claims team, open a claim for $650.00 with attached evidence" } },
     { id: "evt_l4", ts: at(5 * DAY + 20 * HOUR), kind: "approved", actor: "human", title: "Approved by you" },
-    { id: "evt_l5", ts: at(5 * DAY + 19 * HOUR), kind: "email_sent", actor: "fo", title: "Fo emailed Lemonade", fo_conversation_id: "fo_conv_l2m9x7aa",
-      email: { from: "dhyey@fo-agent.example", to: "claims@lemonade.example", subject: "Renters claim — stolen bicycle (policy LM-88213)",
+    { id: "evt_l5", ts: at(5 * DAY + 19 * HOUR), kind: "email_sent", actor: "fo", title: "Fo emailed Lemonade (test stand-in)", fo_conversation_id: "fo_conv_l2m9x7aa",
+      email: { from: FROM, to: STANDIN.insurance_claim, subject: "Renters claim — stolen bicycle (policy LM-88213)",
         body: "Hi Lemonade team,\n\nI'd like to open a claim under policy LM-88213 for a stolen Trek FX 2 ($650.00). Police report NYPD-26-118402, receipt and photos attached.\n\nThank you,\nFo, on behalf of Dhyey Desai" } },
-    { id: "evt_l6", ts: at(3 * DAY), kind: "reply_received", actor: "counterparty", title: "Reply from Lemonade",
-      email: { from: "claims@lemonade.example", to: "dhyey@fo-agent.example", subject: "RE: Renters claim — stolen bicycle",
-        body: "Hi Dhyey,\n\nGood news — your claim has been approved. $650.00 minus your $0 deductible will be deposited to your account on file within 2 business days.\n\n— Lemonade Claims" } },
+    { id: "evt_l6", ts: at(3 * DAY), kind: "reply_received", actor: "counterparty", title: "Reply from Lemonade (test stand-in)",
+      email: { from: STANDIN.insurance_claim, to: FROM, subject: "RE: Renters claim — stolen bicycle",
+        body: "Hi Dhyey,\n\nGood news — your claim has been approved. $650.00 minus your $0 deductible will be deposited to your account on file within 2 business days.\n\n— Lemonade Claims (test stand-in)" } },
     { id: "evt_l7", ts: at(2 * DAY), kind: "follow_up_scheduled", actor: "agent", title: "Follow-up scheduled", detail: "Verify deposit posted by Oct 16." },
     { id: "evt_l8", ts: at(1 * DAY), kind: "resolved", actor: "agent", title: "Resolved", detail: "$650.00 deposit confirmed." },
   ]);

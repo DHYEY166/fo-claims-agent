@@ -1,4 +1,4 @@
-export type CaseType = "card_dispute" | "insurance_claim" | "package_claim";
+export type CaseType = "card_dispute" | "insurance_claim" | "package_claim" | "other"; // other = out of scope
 export type CaseStatus =
   | "new" | "classified" | "gathering_evidence" | "awaiting_approval" | "contacting"
   | "awaiting_reply" | "follow_up_scheduled" | "resolved" | "rejected" | "failed" | "escalated"
@@ -35,7 +35,7 @@ export interface CaseEvent {
   detail?: string | null;
   actor: "agent" | "fo" | "human" | "counterparty" | (string & {});
   proposed_action?: string | ProposedAction;
-  evidence?: Record<string, unknown>;
+  evidence?: Record<string, EvidenceValue>;
   pending?: boolean;
   transcript?: TranscriptTurn[];
   email?: EmailBody;
@@ -60,7 +60,13 @@ export interface ProposedAction {
   message?: string | null;
   spend_cents?: number | null;
   approval_id?: string;
+  summary?: string; // optional one-line human summary; UI uses it as the headline when present
 }
+
+/** Evidence fields arrive either as plain values or as {value, status, citation}. */
+export type EvidenceStatus = "present" | "absent" | "ambiguous";
+export interface EvidenceField { value: unknown; status: EvidenceStatus | (string & {}); citation?: string | null }
+export type EvidenceValue = string | number | boolean | null | EvidenceField | Record<string, unknown>;
 
 export interface AuditRow {
   id: number;

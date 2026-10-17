@@ -116,7 +116,7 @@ export default function NewClaimPage() {
               </div>
               <label className="block text-sm font-medium text-zinc-800">…or paste the forwarded email</label>
               <textarea value={forwarded} onChange={(e) => setForwarded(e.target.value)} rows={7}
-                placeholder={"---------- Forwarded message ---------\nFrom: Chase <no-reply@chase.example>\nSubject: Transaction alert: $184.20 at BLUE BOTTLE COFFEE"}
+                placeholder={"---------- Forwarded message ---------\nFrom: Card alerts <alerts@bank-standin.test.example>\nSubject: Transaction alert: $184.20 at BLUE BOTTLE COFFEE"}
                 className="w-full resize-none rounded-lg border border-zinc-200 bg-zinc-50/50 px-3.5 py-3 font-mono text-xs leading-relaxed outline-none transition placeholder:text-zinc-400 focus:border-accent-500 focus:bg-white focus:ring-4 focus:ring-accent-100" />
             </>
           )}

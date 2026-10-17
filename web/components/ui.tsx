@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { CreditCard, Package, ShieldCheck } from "lucide-react";
+import { CircleSlash, CreditCard, Package, ShieldCheck } from "lucide-react";
 import type { CaseStatus, CaseType, ProposedAction } from "@/lib/types";
 
 export function cx(...c: (string | false | null | undefined)[]) { return c.filter(Boolean).join(" "); }
@@ -35,11 +35,12 @@ const TYPE_META: Record<CaseType, { label: string; Icon: typeof CreditCard; tone
   card_dispute: { label: "Card dispute", Icon: CreditCard, tone: "bg-sky-50 text-sky-600 ring-sky-100" },
   insurance_claim: { label: "Insurance claim", Icon: ShieldCheck, tone: "bg-violet-50 text-violet-600 ring-violet-100" },
   package_claim: { label: "Package claim", Icon: Package, tone: "bg-amber-50 text-amber-600 ring-amber-100" },
+  other: { label: "Out of scope", Icon: CircleSlash, tone: "bg-zinc-100 text-zinc-500 ring-zinc-200" },
 };
-export const typeLabel = (t: CaseType) => TYPE_META[t]?.label ?? t;
+export const typeLabel = (t: CaseType) => TYPE_META[t]?.label ?? "Out of scope";
 
 export function TypeIcon({ type, size = "md" }: { type: CaseType; size?: "sm" | "md" }) {
-  const m = TYPE_META[type] ?? TYPE_META.card_dispute;
+  const m = TYPE_META[type] ?? TYPE_META.other;
   const box = size === "sm" ? "h-7 w-7" : "h-9 w-9";
   return (
     <span title={m.label} className={cx("inline-flex shrink-0 items-center justify-center rounded-lg ring-1", box, m.tone)}>
@@ -110,5 +111,5 @@ export function describeAction(pa: string | ProposedAction | undefined | null) {
   const ch = String(pa.channel || "action");
   const verb = ch === "email" ? "Email" : ch === "call" ? "Call" : ch === "card" ? "Use a single-use card with" : ch.charAt(0).toUpperCase() + ch.slice(1);
   const who = pa.acting_as || pa.to || "the counterparty";
-  return { channel: ch, headline: `${verb} ${who}`, to: pa.to ?? null, message: pa.message ?? null, spend_cents: pa.spend_cents ?? null };
+  return { channel: ch, headline: pa.summary || `${verb} ${who}`, to: pa.to ?? null, message: pa.message ?? null, spend_cents: pa.spend_cents ?? null };
 }
