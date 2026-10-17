@@ -2,7 +2,7 @@
 
 Version 3, email only, rewritten at 4:05 PM ET around the team's real runs. Shown on the dashboard that's already running on `:3100` in live mode against `:8000`. Don't run `restart.sh` or restart anything after 7:15 PM ET / 4:15 PM PT, just open the page.
 What's real: Claude classification, the approval gate, `Trust.authorize`, double-approve blocking, low-confidence and injection escalation, redaction at intake, and the hash-chained audit log.
-What's mocked: the Fo send itself, because WAJO_API_KEY isn't set yet. The case header carries a SIMULATED badge, and the narrator says so out loud.
+What's real on the Fo side: we're connected to real Fo through OAuth, and a live `ask_fo` round trip (PONG) passed on `:8020`. What's mocked: the email send, because `:8000` stays on `FO_MOCK=1` until fo lead says go. Mocked steps carry an amber MOCK badge, and the narrator says so out loud.
 If the key lands and fo builder posts a real Fo turn on the test inbox, swap the line marked SWAP IF REAL.
 
 Spoken length: about 280 words at a calm pace.
@@ -20,7 +20,7 @@ Spoken length: about 280 words at a calm pace.
 
 **1:00 to 1:25. The approval gate** [Approve before action card]
 "Before anything goes out, the agent stops and shows me exactly what Fo will do: who it emails, what it says, and that it spends zero dollars. Nothing is sent until I press Approve, and real sends to the test inbox are capped at 3 a day in code." [press Approve]
-"Fo takes it from here. Tonight the send is simulated because we're still connecting our Fo key, and that's what the badge up here means." SWAP IF REAL: "Fo just emailed our test bank inbox, and here's its reply."
+"Fo takes it from here. We're connected to real Fo through OAuth, and the live round trip is verified. The email itself is mocked tonight, and that's what the MOCK badge means." SWAP IF REAL: "Fo just emailed our test bank inbox, and here's its reply."
 [timeline runs to Resolved] "The reply comes back, the case closes as resolved, and every step is on the timeline."
 
 **1:25 to 1:45. When it should not act** [escalated case, then Audit log]
@@ -38,7 +38,7 @@ Spoken length: about 280 words at a calm pace.
 | Intake and classification | Agent craft (20) | Live Claude run: card dispute at 95%, Chase, $89.99, evidence fields (fo builder, classify.v2 on 76039ad); line citations on 7 of 8 fields and a code-computed filing deadline (fo builder, 76039ad, STREAMFLIX run) |
 | Approval gate | Trust by design (20) | Approve card, `Trust.authorize`, $0 spend shown; double approve gets 409 (fo trust qa, 9 of 9 API tests); 3-a-day send cap (fo trust qa, cb675b4, 3 passed, tests the cap function directly) |
 | Escalation and audit | Trust by design (20) | Vague claim at 0.10 escalated; injection flagged and escalated; `chain_ok: true` |
-| Fo send | Gets real things done (25) | Simulated tonight; real once the key is in |
+| Fo send | Gets real things done (25) | Real Fo connected through OAuth; live `ask_fo` PONG round trip passed in 12.9 s (fo builder, `:8020`). Email send mocked tonight |
 | Follow-ups until resolved | Pushes the frontier (25) | Planned for Monday; say "next", not "done" |
 
 ## Don't say tonight
