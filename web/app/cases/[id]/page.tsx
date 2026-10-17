@@ -165,6 +165,13 @@ function MockBadge() {
   );
 }
 
+function LiveBadge() {
+  return (
+    <span title="Real email sent (to the test bank inbox)" data-live-badge
+      className="rounded border border-emerald-300 bg-emerald-50 px-1.5 py-px font-mono text-[10px] font-semibold tracking-wider text-emerald-800">LIVE</span>
+  );
+}
+
 function Row({ k, children }: { k: string; children: React.ReactNode }) {
   return <div className="flex items-center justify-between gap-3"><dt className="text-zinc-500">{k}</dt><dd className="truncate text-right text-zinc-900">{children}</dd></div>;
 }
@@ -232,6 +239,8 @@ function TimelineItem({ e, last, fresh, now }: { e: CaseEvent; last: boolean; fr
   const prefixed = /^\[MOCK\]\s*/i.test(e.title);
   const isMock = e.mock === true || prefixed;
   const title = isMock ? e.title.replace(/^\[MOCK\]\s*/i, "") : e.title;
+  // A real (non-simulated) outbound email gets a LIVE badge so the on-stage send is unmistakable.
+  const isLiveSend = /^email_sen[td]/.test(String(e.kind)) && !isMock;
   const showTranscript = !!e.transcript?.length && !DEMO_HIDE_CALLS;
   const expandable = showTranscript || !!e.email;
   const [open, setOpen] = useState(false);
@@ -245,6 +254,7 @@ function TimelineItem({ e, last, fresh, now }: { e: CaseEvent; last: boolean; fr
         <div className="flex items-baseline gap-2">
           <span className="text-sm font-medium text-zinc-900">{maskEmails(title)}</span>
           {isMock && <MockBadge />}
+          {isLiveSend && <LiveBadge />}
           {e.kind === "approval_requested" && e.pending && <span className="rounded-full bg-amber-50 px-1.5 py-px text-[11px] font-medium text-amber-700 ring-1 ring-amber-200">pending</span>}
           <span className="ml-auto shrink-0 text-xs tabular-nums text-zinc-400" title={fmtTime(e.ts)}>{relTime(e.ts, now)}</span>
         </div>
