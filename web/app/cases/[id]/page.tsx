@@ -240,7 +240,9 @@ function TimelineItem({ e, last, fresh, now }: { e: CaseEvent; last: boolean; fr
   const isMock = e.mock === true || prefixed;
   const title = isMock ? e.title.replace(/^\[MOCK\]\s*/i, "") : e.title;
   // A real (non-simulated) outbound email gets a LIVE badge so the on-stage send is unmistakable.
-  const isLiveSend = /^email_sen[td]/.test(String(e.kind)) && !isMock;
+  // Real (FO_MOCK=0) path: the send is reported as a "Fo replied" note from get_fo_reply, not an email_sent event.
+  const isFoReport = !isMock && e.actor === "fo" && (String(e.trace?.tool ?? "").includes("get_fo_reply") || e.title === "Fo replied");
+  const isLiveSend = (/^email_sen[td]/.test(String(e.kind)) && !isMock) || isFoReport;
   const showTranscript = !!e.transcript?.length && !DEMO_HIDE_CALLS;
   const expandable = showTranscript || !!e.email;
   const [open, setOpen] = useState(false);
@@ -261,7 +263,15 @@ function TimelineItem({ e, last, fresh, now }: { e: CaseEvent; last: boolean; fr
         <div className="mt-0.5 flex items-center gap-1.5 text-xs text-zinc-500">
           {e.actor === "fo" ? <Bot className="h-3 w-3" /> : null}{ACTOR[e.actor] ?? e.actor}
         </div>
-        {e.pending ? <p className="mt-1.5 text-sm text-amber-700">Waiting for your decision — see the approval card above.</p>
+        {isFoReport && (
+          <div className="mt-1.5 rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2" data-fo-report>
+            <div className="text-[11px] font-medium uppercase tracking-wider text-emerald-700">
+              Fo reported{e.proposed_email?.to ? <span className="normal-case tracking-normal text-emerald-700/80"> · sent to {maskAddress(e.proposed_email.to)}</span> : null}
+            </div>
+            <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-zinc-700">{e.detail ? maskEmails(e.detail) : "(no text in Fo's reply)"}</p>
+          </div>
+        )}
+        {isFoReport ? null : e.pending ? <p className="mt-1.5 text-sm text-amber-700">Waiting for your decision — see the approval card above.</p>
           : e.detail && !(e.evidence && Object.keys(e.evidence).length) && <p className={cx("mt-1.5 whitespace-pre-wrap text-sm leading-relaxed", e.kind === "escalated_to_human" ? "rounded-md bg-amber-50 px-3 py-2 text-amber-900" : "text-zinc-600")}>{maskEmails(prettyDetail(e.detail))}</p>}
         <EvidenceGrid evidence={e.evidence} />
         {e.fo_conversation_id && <p className="mt-1 font-mono text-[11px] text-zinc-400">fo conversation · {e.fo_conversation_id}</p>}

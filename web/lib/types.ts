@@ -40,6 +40,7 @@ export interface CaseEvent {
   transcript?: TranscriptTurn[];
   email?: EmailBody;
   fo_conversation_id?: string;
+  proposed_email?: { to?: string | null; body?: string | null }; // real backend, on the "Fo replied" step
   reason?: string | string[]; // escalated_to_human: why the agent stopped (optional; may also be in the title after ":")
   trace?: Trace;
   mock?: boolean;
@@ -56,6 +57,8 @@ export interface Trace {
   model?: string;
   prompt_id?: string;
   grounding_problems?: string[]; // real backend: extraction values not grounded in the source
+  tool?: string;                 // real backend, e.g. "ask_fo/get_fo_reply"
+  mock?: boolean;
 }
 
 export type CaseWithEvents = Case & { events: CaseEvent[] };
