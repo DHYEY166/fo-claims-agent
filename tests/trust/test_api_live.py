@@ -138,3 +138,32 @@ def test_hidden_recipient_in_confident_dispute_never_reaches_fo():
     assert audit["chain_ok"] is True
     sent = [row for row in audit["rows"] if row["event"] in ("ask_fo_sent", "fo_ask_authorized")]
     assert sent and all(hidden not in json.dumps(row).lower() for row in sent)
+
+
+def _test_target():
+    """Read the private test-bank address from the env or the repo .env. Never printed or hardcoded."""
+    t = os.environ.get("FO_TEST_TARGET")
+    if not t:
+        for env in (os.environ.get("ENV_FILE", ""), "/workspace/gsd-hackathon/.env", "/workspace/gsd-wt/api/.env"):
+            if env and os.path.exists(env):
+                for line in open(env):
+                    if line.startswith("FO_TEST_TARGET="):
+                        t = line.split("=", 1)[1].strip().strip('"\'')
+    return t
+
+
+def test_test_bank_address_never_returned_by_api():
+    target = _test_target()
+    if not target:
+        pytest.skip("FO_TEST_TARGET not configured")
+    cid = _new(DISPUTE)  # drives the normal flow, where the server fills in the real recipient
+    c = _wait(cid, {"awaiting_approval", "escalated", "failed"})
+    if c["status"] == "awaiting_approval":
+        httpx.post(f"{BASE}/api/cases/{cid}/approvals", json={"event_id": _pending(c)["id"], "decision": "approve"})
+        _wait(cid, {"resolved", "failed"})
+    needles = {target.lower(), target.split("@")[0].split("+")[0].lower()}
+    for path, params in [("/api/health", None), ("/api/cases", None), (f"/api/cases/{cid}", None),
+                         ("/api/audit", None), ("/api/audit", {"case_id": cid})]:
+        body = httpx.get(f"{BASE}{path}", params=params).text.lower()
+        leaked = [n for n in needles if n in body]
+        assert not leaked, f"test bank address leaked in {path}"  # message names the path, never the address
