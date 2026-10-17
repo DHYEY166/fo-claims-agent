@@ -147,3 +147,16 @@ Send state of a live "Fo replied" step (never says "sent" without a reason):
    otherwise "held for your go-ahead" / "say go and I'll send" / "waiting for your go-ahead" → HELD; otherwise neutral "Fo drafted email to test bank inbox".
    Exception for old backends (e8a5889) that scheduled a follow-up even after a hold: if Fo's text has those narrow held words
    and no sent words, the step shows HELD.
+
+### Backend step titles the send state relies on (feature/fo-oauth f80d51a)
+
+| Step title (exact) | Kind | Meaning for the preceding "Fo replied" step |
+|---|---|---|
+| `Fo is holding the email for your go-ahead` | `escalated_to_human` | HELD (amber "HELD BY FO" badge), unless a later confirmation arrives |
+| `Couldn't confirm Fo sent the email` | `escalated_to_human` | Unconfirmed: neutral "Fo drafted email to test bank inbox" plus a gray UNCONFIRMED badge. Never sent and never HELD, whatever Fo's text says. The step itself renders as a normal escalated step. |
+| `Fo confirmed it sent the email` | `note` (actor `fo` or `system`) | Sent. Overrides HELD, unconfirmed and the old-case exception for every earlier Fo reply. The hold banner and header badge hide. The step renders green; its detail goes through `maskEmails`. |
+| `Follow-up scheduled` | `follow_up_scheduled` | Sent (confirmed send) |
+
+"Sent to test bank inbox" shows only with backend confirmation: a later `Fo confirmed it sent the email`, a later `Follow-up scheduled`
+(before the next Fo reply), or case status `awaiting_reply` for the latest reply. The text fallback above only applies to old cases
+where none of these signals appear anywhere in the case.

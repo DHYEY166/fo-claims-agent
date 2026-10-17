@@ -61,11 +61,12 @@ export default function CaseDetail({ params }: { params: Promise<{ id: string }>
   const pending = data.events.filter((e) => e.kind === "approval_requested" && e.pending);
   const escalation = [...data.events].reverse().find((e) => e.kind === "escalated_to_human");
   const escReasons = escalation ? escalationReasons(escalation) : [];
-  const sendStates = foSendStates(data.events, { fo_sent: data.fo_sent, held: data.held });
+  const sendStates = foSendStates(data.events, { status: data.status, fo_sent: data.fo_sent, held: data.held });
   const reports = data.events.filter(isFoReportEvent);
   const lastReport = reports[reports.length - 1];
-  const caseHeld = data.held === true || pending.some(isFoGo) || (!!lastReport && sendStates[lastReport.id] === "held"
-    && (data.status === "escalated" || data.status === "awaiting_approval"));
+  const confirmedSent = data.events.some(isConfirmedSentStep);
+  const caseHeld = !confirmedSent && (data.held === true || pending.some(isFoGo) || (!!lastReport && sendStates[lastReport.id] === "held"
+    && (data.status === "escalated" || data.status === "awaiting_approval")));
   const isHoldEscalation = !!escalation && isHoldingStep(escalation);
   const working = ["new", "classified", "gathering_evidence", "contacting"].includes(data.status);
 
@@ -96,7 +97,7 @@ export default function CaseDetail({ params }: { params: Promise<{ id: string }>
 
       <div className="grid grid-cols-[minmax(0,1fr)_280px] gap-6">
         <div className="space-y-5">
-          {escalation && (data.status === "escalated" || (!pending.length && !isHoldingStep(escalation))) && (
+          {escalation && !(isHoldingStep(escalation) && data.events.slice(data.events.indexOf(escalation) + 1).some(isConfirmedSentStep)) && (data.status === "escalated" || (!pending.length && !isHoldingStep(escalation))) && (
             <section className="animate-fade-in overflow-hidden rounded-xl border border-amber-300 bg-amber-50/60">
               <div className="flex items-start gap-3 px-5 py-4">
                 <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
@@ -108,6 +109,7 @@ export default function CaseDetail({ params }: { params: Promise<{ id: string }>
                   {escalation.detail && <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-amber-900/80">{maskEmails(escalation.detail)}</p>}
                   <p className="mt-2 text-xs font-medium text-amber-700">{isHoldEscalation
                     ? "Fo drafted the email but nothing was sent. Handed to a human EA."
+                    : escalation && isUnconfirmedStep(escalation) ? "Fo's reply didn't confirm a send, so the agent isn't assuming one. Handed to a human EA."
                     : "The agent stopped before contacting anyone and handed this to a human EA."}</p>
                 </div>
               </div>
@@ -120,7 +122,7 @@ export default function CaseDetail({ params }: { params: Promise<{ id: string }>
             <ol className="relative">
               {visible.map((e, i) => (
                 <TimelineItem key={e.id} e={e} last={i === visible.length - 1 && !working} fresh={fresh.has(e.id)} now={now}
-                  sendState={sendStates[e.id] ?? null} />
+                  sendState={sendStates[e.id] ?? null} sentLater={data.events.slice(data.events.indexOf(e) + 1).some(isConfirmedSentStep)} />
               ))}
               {working && (
                 <li className="flex items-center gap-3 pl-0.5 text-sm text-zinc-400">
@@ -178,6 +180,7 @@ function MockBadge() {
 /** The real-path "Fo replied" step (FO_MOCK=0): a non-simulated Fo note produced by get_fo_reply. */
 function isFoReportEvent(e: CaseEvent) {
   const mock = e.mock === true || /^\[MOCK\]\s*/i.test(e.title);
+  if (isConfirmedSentStep(e) || isUnconfirmedStep(e) || isHoldingStep(e)) return false;
   return !mock && e.actor === "fo" && (String(e.trace?.tool ?? "").includes("get_fo_reply") || e.title === "Fo replied");
 }
 
@@ -188,30 +191,40 @@ const HELD_TEXT = /held for your go-ahead|say go and I(?:'|’)?ll send|waiting 
 const isFoGo = (e: CaseEvent) => e.kind === "approval_requested" && typeof e.proposed_action === "object" && e.proposed_action?.kind === "fo_go";
 const isHoldingStep = (e: CaseEvent) => /^Fo is holding the email/i.test(e.title);
 const isFollowUp = (e: CaseEvent) => e.kind === "follow_up_scheduled" || /^Follow-up scheduled/i.test(e.title);
-type SendState = "sent" | "held" | "drafted";
+const isConfirmedSentStep = (e: CaseEvent) => /^Fo confirmed it sent the email$/i.test(e.title.trim());
+const isUnconfirmedStep = (e: CaseEvent) => /^Couldn(?:'|’)?t confirm Fo sent the email/i.test(e.title);
+type SendState = "sent" | "held" | "drafted" | "unconfirmed";
 
 /**
- * Send state of each live "Fo replied" step. Backend rule: a send is confirmed only when that
- * reply is followed by a "Follow-up scheduled" step (before the next Fo reply). Never "sent" otherwise.
+ * Send state of each live "Fo replied" step. Never "sent" without backend confirmation:
+ * a later "Follow-up scheduled" step (before the next Fo reply) or, for the latest reply, case status awaiting_reply.
+ * A later "Couldn't confirm Fo sent the email" step makes the reply "unconfirmed", whatever its text says.
+ * The text fallback only applies to old cases where the backend gave no signal at all.
  */
-function foSendStates(events: CaseEvent[], c: { fo_sent?: boolean; held?: boolean }): Record<string, SendState> {
+function foSendStates(events: CaseEvent[], c: { status?: string; fo_sent?: boolean; held?: boolean }): Record<string, SendState> {
   const out: Record<string, SendState> = {};
+  const caseHasSignal = c.status === "awaiting_reply"
+    || events.some((x) => isConfirmedSentStep(x) || isHoldingStep(x) || isFoGo(x) || isUnconfirmedStep(x) || isFollowUp(x));
   events.forEach((e, i) => {
     if (!isFoReportEvent(e)) return;
     let j = i + 1;
     while (j < events.length && !isFoReportEvent(events[j])) j++;
     const after = events.slice(i + 1, j);
+    const latest = j === events.length;
     const textSent = SENT_TEXT.some((r) => r.test(e.detail ?? ""));
     const textHeld = !textSent && HELD_TEXT.test(e.detail ?? "");
-    // (a) backend signals
-    if (after.some(isHoldingStep) || after.some(isFoGo) || e.held === true || e.fo_sent === false || c.held === true) out[e.id] = "held";
+    // (a) backend signals, strongest first. An explicit "Fo confirmed it sent the email" anywhere after
+    // this reply overrides HELD, unconfirmed and the old-case exception.
+    if (events.slice(i + 1).some(isConfirmedSentStep)) out[e.id] = "sent";
+    else if (after.some(isUnconfirmedStep)) out[e.id] = "unconfirmed";
+    else if (after.some(isHoldingStep) || after.some(isFoGo) || e.held === true || e.fo_sent === false || c.held === true) out[e.id] = "held";
     // Pre-hold-detection backends (e8a5889, e.g. case_cbd0d1cf1a) scheduled a follow-up even when Fo held
     // the email; Fo's own narrow "held" words win there so we never claim a send that didn't happen.
     else if (after.some(isFollowUp)) out[e.id] = textHeld ? "held" : "sent";
-    // (b) text fallback, only when the backend gave no signal for this step
-    // (b) text fallback, only when the backend gave no signal for this step
-    else if (textSent) out[e.id] = "sent";
-    else if (textHeld) out[e.id] = "held";
+    else if (latest && c.status === "awaiting_reply") out[e.id] = textHeld ? "held" : "sent";
+    // (b) text fallback, only for old cases with no backend signal at all
+    else if (!caseHasSignal && textSent) out[e.id] = "sent";
+    else if (!caseHasSignal && textHeld) out[e.id] = "held";
     else out[e.id] = "drafted";
   });
   return out;
@@ -221,6 +234,13 @@ function HeldBadge() {
   return (
     <span title="Fo drafted the email and is holding it for your go-ahead" data-held-badge
       className="rounded border border-amber-300 bg-amber-50 px-1.5 py-px font-mono text-[10px] font-semibold tracking-wider text-amber-800">HELD BY FO: waiting for go-ahead</span>
+  );
+}
+
+function UnconfirmedBadge() {
+  return (
+    <span title="The backend couldn't confirm Fo sent this email" data-unconfirmed-badge
+      className="rounded border border-zinc-300 bg-zinc-50 px-1.5 py-px font-mono text-[10px] font-semibold tracking-wider text-zinc-600">UNCONFIRMED</span>
   );
 }
 
@@ -311,8 +331,9 @@ function ApprovalCard({ caseId, event, onConflict }: { caseId: string; event: Ca
   );
 }
 
-function TimelineItem({ e, last, fresh, now, sendState }: { e: CaseEvent; last: boolean; fresh: boolean; now: number; sendState: SendState | null }) {
-  const k = KIND[e.kind] ?? KIND.note;
+function TimelineItem({ e, last, fresh, now, sendState, sentLater }: { e: CaseEvent; last: boolean; fresh: boolean; now: number; sendState: SendState | null; sentLater: boolean }) {
+  const confirmed = isConfirmedSentStep(e);
+  const k = confirmed ? { Icon: CheckCircle2, tone: "bg-emerald-50 text-emerald-600" } : KIND[e.kind] ?? KIND.note;
   // Simulated steps: backend flags them with mock:true and/or a "[MOCK] " title prefix.
   const prefixed = /^\[MOCK\]\s*/i.test(e.title);
   const isMock = e.mock === true || prefixed;
@@ -335,7 +356,8 @@ function TimelineItem({ e, last, fresh, now, sendState }: { e: CaseEvent; last: 
           <span className="text-sm font-medium text-zinc-900">{maskEmails(title)}</span>
           {isMock && <MockBadge />}
           {isLiveSend && <LiveBadge />}
-          {(sendState === "held" || isHoldingStep(e)) && <HeldBadge />}
+          {(sendState === "held" || (isHoldingStep(e) && !sentLater)) && <HeldBadge />}
+          {sendState === "unconfirmed" && <UnconfirmedBadge />}
           {e.kind === "approval_requested" && e.pending && <span className="rounded-full bg-amber-50 px-1.5 py-px text-[11px] font-medium text-amber-700 ring-1 ring-amber-200">pending</span>}
           <span className="ml-auto shrink-0 text-xs tabular-nums text-zinc-400" title={fmtTime(e.ts)}>{relTime(e.ts, now)}</span>
         </div>
@@ -358,7 +380,7 @@ function TimelineItem({ e, last, fresh, now, sendState }: { e: CaseEvent; last: 
           </p>
         )}
         {isFoReport ? null : e.pending ? <p className="mt-1.5 text-sm text-amber-700">Waiting for your decision — see the approval card above.</p>
-          : e.detail && !(e.evidence && Object.keys(e.evidence).length) && <p className={cx("mt-1.5 whitespace-pre-wrap text-sm leading-relaxed", e.kind === "escalated_to_human" ? "rounded-md bg-amber-50 px-3 py-2 text-amber-900" : "text-zinc-600")}>{maskEmails(prettyDetail(e.detail))}</p>}
+          : e.detail && !(e.evidence && Object.keys(e.evidence).length) && <p className={cx("mt-1.5 whitespace-pre-wrap text-sm leading-relaxed", confirmed ? "rounded-md bg-emerald-50 px-3 py-2 text-emerald-800" : e.kind === "escalated_to_human" ? "rounded-md bg-amber-50 px-3 py-2 text-amber-900" : "text-zinc-600")}>{maskEmails(prettyDetail(e.detail))}</p>}
         <EvidenceGrid evidence={e.evidence} />
         {e.fo_conversation_id && <p className="mt-1 font-mono text-[11px] text-zinc-400">fo conversation · {e.fo_conversation_id}</p>}
         <TraceRow trace={e.trace} />
