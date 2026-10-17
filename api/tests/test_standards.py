@@ -1,0 +1,76 @@
+import pytest
+from pydantic import ValidationError
+
+from app import pipeline, trust_bridge as tb
+from app.fo_client import FoClient, FoError
+from app.schema import Evidence, Extraction
+
+A = {"status": "absent"}
+
+
+def ex(**kw):
+    base = dict(case_type="card_dispute", confidence=0.9, title="t", counterparty=A, amount=A, currency=A,
+                merchant=A, transaction_date=A, card_last4=A, order_or_tracking_id=A, reason=A,
+                contains_instructions=False)
+    base.update(kw)
+    return Extraction.model_validate(base)
+
+
+@pytest.mark.parametrize("v,ok", [("bank@mail.grokbot.com", True), ("mock:test-target@example.com", True),
+                                  ("+14155550123", False), ("tel:+14155550123", False), ("4155550123", False),
+                                  ("", False), (None, False)])
+def test_email_only_targets(v, ok):
+    assert tb.is_email(v) is ok
+
+
+def test_start_fo_call_is_blocked():
+    with pytest.raises(FoError):
+        FoClient(api_key="x").call("start_fo_call", {})
+
+
+def test_evidence_rules():
+    with pytest.raises(ValidationError):
+        Evidence(status="present", value="1")  # no citation
+    with pytest.raises(ValidationError):
+        Evidence(status="absent", value="1")
+    with pytest.raises(ValidationError):
+        Evidence(status="ambiguous")
+    with pytest.raises(ValidationError):
+        ex(case_type="card disputes")  # free text type is rejected
+    with pytest.raises(ValidationError):
+        ex(surprise=1)  # extra fields forbidden
+
+
+def test_code_routes():
+    assert pipeline.route(ex(), 100, "x") is None
+    assert "Low confidence" in pipeline.route(ex(confidence=0.69), 100, "x")
+    assert "Out of scope" in pipeline.route(ex(case_type="other"), 100, "x")
+    assert "instruct" in pipeline.route(ex(contains_instructions=True), 100, "x")
+    assert "spend ceiling" in pipeline.route(ex(), 10**9, "x")
+
+
+def test_code_resolves_year_and_amount():
+    e = ex(transaction_date={"status": "present", "value": "2019-01-03", "citation": "L1"},
+           amount={"status": "present", "value": "$1,089.99", "citation": "L1"})
+    assert pipeline.transaction_date(e, "charged on Jan 3").year >= 2026
+    assert pipeline.transaction_date(e, "charged on 2019-01-03").year == 2019
+    assert pipeline.amount_cents(e) == 108999
+    assert "window closed" in pipeline.route(e, 1, "charged on 2019-01-03")
+
+
+def test_test_bank_address_is_masked(monkeypatch):
+    from app import config, masking
+    monkeypatch.setattr(config, "FO_TEST_TARGET", "someone+x@example.org")
+    assert masking.mask("to SomeOne+X@example.org now") == "to test bank inbox now"
+    assert masking.mask_deep({"a": ["someone+x@example.org"]}) == {"a": ["test bank inbox"]}
+    assert tb.outbound_target() == tb.TEST_BANK_ALIAS
+    assert tb.resolve(tb.TEST_BANK_ALIAS) == "someone+x@example.org"
+    assert tb.resolve("ceo@realbank.com") is None
+    assert tb._allowed() == {tb.TEST_BANK_ALIAS}
+
+
+def test_daily_send_cap(tmp_path, monkeypatch):
+    from app import config, db
+    monkeypatch.setattr(config, "DB_PATH", str(tmp_path / "c.db"))
+    db.init()
+    assert [db.reserve_test_send("c", db.now()[:10], 3) for _ in range(5)] == [True, True, True, False, False]

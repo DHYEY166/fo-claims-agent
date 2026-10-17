@@ -1,0 +1,5 @@
+.venv/
+cases.db
+__pycache__/
+.pytest_cache/
+audit.db
