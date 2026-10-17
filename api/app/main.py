@@ -1,4 +1,5 @@
 import asyncio
+import html
 import json
 import logging
 import threading
@@ -64,12 +65,13 @@ def oauth_callback(request: Request, code: Optional[str] = None, state: Optional
                    error: Optional[str] = None):
     _local_only(request)
     if error or not code or not state:
-        return HTMLResponse(f"<h3>Fo sign-in did not complete</h3><p>{masking.mask(error or 'missing code')}</p>",
+        msg = html.escape(masking.mask(error or "missing code"))
+        return HTMLResponse(f"<h3>Fo sign-in did not complete</h3><p>{msg}</p>",
                             status_code=400)
     try:
         fo_oauth.callback(code, state)
     except fo_oauth.OAuthError as e:
-        return HTMLResponse(f"<h3>Fo sign-in failed</h3><p>{e}</p>", status_code=400)
+        return HTMLResponse(f"<h3>Fo sign-in failed</h3><p>{html.escape(str(e))}</p>", status_code=400)
     log.info("fo oauth connected")
     return HTMLResponse("<h3>Fo is connected.</h3><p>You can close this tab.</p>")
 
