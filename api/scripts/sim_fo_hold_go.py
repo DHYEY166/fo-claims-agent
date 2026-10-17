@@ -1,5 +1,6 @@
 """Offline check of the held-email path and the one-click go-ahead. Fo is stubbed; nothing leaves this computer.
-Run with throwaway DBs: DB_PATH=/tmp/x/cases.db AUDIT_DB_PATH=/tmp/x/audit.db FO_MOCK=0 python scripts/sim_fo_hold_go.py"""
+Run with throwaway DBs:
+DB_PATH=/tmp/x/cases.db AUDIT_DB_PATH=/tmp/x/audit.db FO_MOCK=0 python scripts/sim_fo_hold_go.py"""
 import sys
 sys.path.insert(0, ".")
 from app import db, pipeline, trust_bridge as tb  # noqa: E402
