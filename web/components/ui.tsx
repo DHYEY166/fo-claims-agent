@@ -1,11 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
 import { CreditCard, Package, ShieldCheck } from "lucide-react";
-import type { CaseStatus, CaseType } from "@/lib/types";
+import type { CaseStatus, CaseType, ProposedAction } from "@/lib/types";
 
 export function cx(...c: (string | false | null | undefined)[]) { return c.filter(Boolean).join(" "); }
 
-export function money(cents: number, currency = "USD") {
+export function money(cents: number | null | undefined, currency = "USD") {
   return new Intl.NumberFormat("en-US", { style: "currency", currency }).format((cents || 0) / 100);
 }
 
@@ -24,8 +24,11 @@ export function relTime(isoStr: string, now: number) {
   const d = Math.round(h / 24); return `${d}d ago`;
 }
 
-export function fmtTime(isoStr: string) {
-  return new Date(isoStr).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+/** Accepts ISO strings or epoch seconds. */
+export function toDate(t: string | number) { return typeof t === "number" ? new Date(t * 1000) : new Date(t); }
+
+export function fmtTime(isoStr: string | number) {
+  return toDate(isoStr).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
 const TYPE_META: Record<CaseType, { label: string; Icon: typeof CreditCard; tone: string }> = {
@@ -45,7 +48,7 @@ export function TypeIcon({ type, size = "md" }: { type: CaseType; size?: "sm" | 
   );
 }
 
-const STATUS_META: Record<CaseStatus, { label: string; dot: string; pill: string; pulse?: boolean }> = {
+const STATUS_META: Record<string, { label: string; dot: string; pill: string; pulse?: boolean }> = {
   new: { label: "New", dot: "bg-zinc-400", pill: "bg-zinc-100 text-zinc-700" },
   classified: { label: "Classified", dot: "bg-zinc-500", pill: "bg-zinc-100 text-zinc-700", pulse: true },
   gathering_evidence: { label: "Gathering evidence", dot: "bg-sky-500", pill: "bg-sky-50 text-sky-700", pulse: true },
@@ -56,10 +59,11 @@ const STATUS_META: Record<CaseStatus, { label: string; dot: string; pill: string
   resolved: { label: "Resolved", dot: "bg-emerald-500", pill: "bg-emerald-50 text-emerald-700" },
   rejected: { label: "Rejected", dot: "bg-zinc-400", pill: "bg-zinc-100 text-zinc-500" },
   failed: { label: "Failed", dot: "bg-rose-500", pill: "bg-rose-50 text-rose-700" },
+  escalated: { label: "Escalated to human", dot: "bg-amber-600", pill: "bg-amber-100 text-amber-900 ring-1 ring-amber-400" },
 };
 
 export function StatusPill({ status }: { status: CaseStatus }) {
-  const m = STATUS_META[status] ?? STATUS_META.new;
+  const m = STATUS_META[status] ?? { label: String(status || "unknown").replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()), dot: "bg-zinc-400", pill: "bg-zinc-100 text-zinc-600" };
   return (
     <span className={cx("inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium", m.pill)}>
       <span className="relative flex h-1.5 w-1.5">
@@ -97,4 +101,14 @@ export function LiveDot({ mode }: { mode: "connecting" | "live" | "polling" }) {
       {m[1]}
     </span>
   );
+}
+
+/** Normalises a proposed action (plain string in the mock, structured object from the real backend). */
+export function describeAction(pa: string | ProposedAction | undefined | null) {
+  if (!pa) return null;
+  if (typeof pa === "string") return { channel: /^email/i.test(pa) ? "email" : "call", headline: pa, to: null as string | null, message: null as string | null, spend_cents: null as number | null };
+  const ch = String(pa.channel || "action");
+  const verb = ch === "email" ? "Email" : ch === "call" ? "Call" : ch === "card" ? "Use a single-use card with" : ch.charAt(0).toUpperCase() + ch.slice(1);
+  const who = pa.acting_as || pa.to || "the counterparty";
+  return { channel: ch, headline: `${verb} ${who}`, to: pa.to ?? null, message: pa.message ?? null, spend_cents: pa.spend_cents ?? null };
 }

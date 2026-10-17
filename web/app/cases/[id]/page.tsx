@@ -3,14 +3,14 @@ import Link from "next/link";
 import { use, useCallback, useEffect, useState } from "react";
 import {
   ArrowLeft, Bot, Check, CheckCircle2, ChevronDown, Clock, FileSearch, Hand, Loader2, Mail, MailOpen, Phone,
-  ShieldAlert, ShieldCheck, StickyNote, Tag, UserRound, X, XCircle,
+  ShieldAlert, ShieldCheck, StickyNote, Tag, TriangleAlert, UserRound, X, XCircle, CreditCard,
 } from "lucide-react";
-import { api } from "@/lib/api";
+import { ApiError, api } from "@/lib/api";
 import { useLive } from "@/lib/useLive";
-import type { CaseEvent, CaseWithEvents, EventKind } from "@/lib/types";
-import { ConfidenceChip, LiveDot, SimBadge, StatusPill, TypeIcon, cx, fmtTime, money, relTime, typeLabel, useNow } from "@/components/ui";
+import type { CaseEvent, CaseWithEvents } from "@/lib/types";
+import { ConfidenceChip, LiveDot, SimBadge, StatusPill, TypeIcon, cx, describeAction, fmtTime, money, relTime, typeLabel, useNow } from "@/components/ui";
 
-const KIND: Record<EventKind, { Icon: typeof Phone; tone: string }> = {
+const KIND: Record<string, { Icon: typeof Phone; tone: string }> = {
   classified: { Icon: Tag, tone: "bg-zinc-100 text-zinc-600" },
   evidence_gathered: { Icon: FileSearch, tone: "bg-sky-50 text-sky-600" },
   approval_requested: { Icon: Hand, tone: "bg-amber-50 text-amber-600" },
@@ -21,10 +21,10 @@ const KIND: Record<EventKind, { Icon: typeof Phone; tone: string }> = {
   reply_received: { Icon: MailOpen, tone: "bg-indigo-50 text-indigo-600" },
   follow_up_scheduled: { Icon: Clock, tone: "bg-zinc-100 text-zinc-600" },
   resolved: { Icon: CheckCircle2, tone: "bg-emerald-50 text-emerald-600" },
-  escalated_to_human: { Icon: UserRound, tone: "bg-rose-50 text-rose-600" },
+  escalated_to_human: { Icon: UserRound, tone: "bg-amber-100 text-amber-700" },
   note: { Icon: StickyNote, tone: "bg-zinc-100 text-zinc-500" },
 };
-const ACTOR: Record<CaseEvent["actor"], string> = { agent: "Agent", fo: "Fo", human: "You", counterparty: "Counterparty" };
+const ACTOR: Record<string, string> = { agent: "Agent", fo: "Fo", human: "You", counterparty: "Counterparty" };
 
 export default function CaseDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -55,6 +55,7 @@ export default function CaseDetail({ params }: { params: Promise<{ id: string }>
   if (!data) return <div className="flex items-center gap-2 text-sm text-zinc-500"><Loader2 className="h-4 w-4 animate-spin" /> Loading case…</div>;
 
   const pending = data.events.filter((e) => e.kind === "approval_requested" && e.pending);
+  const escalation = [...data.events].reverse().find((e) => e.kind === "escalated_to_human");
   const working = ["new", "classified", "gathering_evidence", "contacting"].includes(data.status);
 
   return (
@@ -74,7 +75,7 @@ export default function CaseDetail({ params }: { params: Promise<{ id: string }>
           <div className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-zinc-500">
             <StatusPill status={data.status} />
             <span>{typeLabel(data.type)}</span><span className="text-zinc-300">·</span>
-            <span>{data.counterparty}</span><span className="text-zinc-300">·</span>
+            <span>{data.counterparty ?? "—"}</span><span className="text-zinc-300">·</span>
             <span className="font-medium tabular-nums text-zinc-900">{data.amount_cents ? money(data.amount_cents, data.currency) : "—"}</span>
             {typeof data.confidence === "number" && <ConfidenceChip value={data.confidence} />}
           </div>
@@ -83,7 +84,19 @@ export default function CaseDetail({ params }: { params: Promise<{ id: string }>
 
       <div className="grid grid-cols-[minmax(0,1fr)_280px] gap-6">
         <div className="space-y-5">
-          {pending.map((e) => <ApprovalCard key={e.id} caseId={id} event={e} />)}
+          {escalation && (data.status === "escalated" || !pending.length) && (
+            <section className="animate-fade-in overflow-hidden rounded-xl border border-amber-300 bg-amber-50/60">
+              <div className="flex items-start gap-3 px-5 py-4">
+                <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-amber-900">{escalation.title}</div>
+                  {escalation.detail && <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-amber-900/80">{escalation.detail}</p>}
+                  <p className="mt-2 text-xs font-medium text-amber-700">The agent stopped before contacting anyone and handed this to a human EA.</p>
+                </div>
+              </div>
+            </section>
+          )}
+          {pending.map((e) => <ApprovalCard key={e.id} caseId={id} event={e} onConflict={load} />)}
 
           <section className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
             <h2 className="mb-4 text-sm font-semibold text-zinc-900">Timeline</h2>
@@ -107,7 +120,7 @@ export default function CaseDetail({ params }: { params: Promise<{ id: string }>
             <h3 className="mb-3 text-xs font-medium uppercase tracking-wider text-zinc-500">Details</h3>
             <dl className="space-y-2.5">
               <Row k="Case ID"><span className="font-mono text-xs">{data.id}</span></Row>
-              <Row k="Counterparty">{data.counterparty}</Row>
+              <Row k="Counterparty">{data.counterparty ?? "—"}</Row>
               <Row k="Amount"><span className="tabular-nums">{data.amount_cents ? money(data.amount_cents, data.currency) : "—"}</span></Row>
               <Row k="Opened">{fmtTime(data.created_at)}</Row>
               <Row k="Updated">{relTime(data.updated_at, now)}</Row>
@@ -128,13 +141,22 @@ function Row({ k, children }: { k: string; children: React.ReactNode }) {
   return <div className="flex items-center justify-between gap-3"><dt className="text-zinc-500">{k}</dt><dd className="truncate text-right text-zinc-900">{children}</dd></div>;
 }
 
-function ApprovalCard({ caseId, event }: { caseId: string; event: CaseEvent }) {
+function ApprovalCard({ caseId, event, onConflict }: { caseId: string; event: CaseEvent; onConflict: () => void }) {
   const [busy, setBusy] = useState<"approve" | "reject" | null>(null);
+  const [decided, setDecided] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
+  const a = describeAction(event.proposed_action);
   async function decide(decision: "approve" | "reject") {
-    setBusy(decision); setErr(null);
-    try { await api.decide(caseId, { event_id: event.id, decision }); } catch (e) { setErr(String(e)); setBusy(null); }
+    if (decided) return;
+    setBusy(decision); setDecided(true); setErr(null);
+    try { await api.decide(caseId, { event_id: event.id, decision }); }
+    catch (e) {
+      if (e instanceof ApiError && e.status === 409) { setInfo("Already decided — this approval was handled already. Refreshing…"); setTimeout(onConflict, 800); }
+      else { setErr(e instanceof Error ? e.message : String(e)); setDecided(false); }
+    } finally { setBusy(null); }
   }
+  const ActionIcon = a?.channel === "email" ? Mail : a?.channel === "card" ? CreditCard : Phone;
   return (
     <section className="animate-fade-in overflow-hidden rounded-xl border border-amber-300 bg-white shadow-[0_0_0_4px_rgba(251,191,36,0.12)]">
       <div className="flex items-center gap-2 border-b border-amber-200 bg-amber-50 px-5 py-2.5">
@@ -144,19 +166,29 @@ function ApprovalCard({ caseId, event }: { caseId: string; event: CaseEvent }) {
       </div>
       <div className="space-y-3 px-5 py-4">
         <div className="text-xs font-medium uppercase tracking-wider text-zinc-500">The agent will</div>
-        <div className="flex items-start gap-3 rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3">
-          {/^email/i.test(event.proposed_action ?? "") ? <Mail className="mt-0.5 h-4 w-4 shrink-0 text-accent-600" /> : <Phone className="mt-0.5 h-4 w-4 shrink-0 text-accent-600" />}
-          <p className="text-[15px] font-medium leading-snug text-zinc-900">{event.proposed_action ?? event.title}</p>
+        <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3">
+          <div className="flex items-start gap-3">
+            <ActionIcon className="mt-0.5 h-4 w-4 shrink-0 text-accent-600" />
+            <p className="text-[15px] font-medium leading-snug text-zinc-900">{a?.headline ?? event.title}</p>
+          </div>
+          {(a?.to || a?.spend_cents != null) && (
+            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 pl-7 text-xs text-zinc-500">
+              {a?.to && <span>To <span className="font-mono text-zinc-700">{a.to}</span></span>}
+              {a?.spend_cents != null && <span>Spend <span className="font-medium tabular-nums text-zinc-700">{money(a.spend_cents)}</span></span>}
+            </div>
+          )}
+          {a?.message && <p className="mt-2 border-l-2 border-zinc-200 pl-3 ml-7 text-sm leading-relaxed text-zinc-600">{a.message}</p>}
         </div>
         {event.detail && <p className="text-sm leading-relaxed text-zinc-600">{event.detail}</p>}
         {err && <p className="text-sm text-rose-600">{err}</p>}
+        {info && <p className="rounded-md bg-zinc-100 px-3 py-2 text-sm text-zinc-600">{info}</p>}
         <div className="flex items-center gap-2 pt-1">
-          <button onClick={() => decide("approve")} disabled={!!busy}
-            className="inline-flex items-center gap-1.5 rounded-md bg-accent-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-accent-700 disabled:opacity-50">
+          <button onClick={() => decide("approve")} disabled={decided}
+            className="inline-flex items-center gap-1.5 rounded-md bg-accent-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-accent-700 disabled:cursor-not-allowed disabled:opacity-50">
             {busy === "approve" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Approve
           </button>
-          <button onClick={() => decide("reject")} disabled={!!busy}
-            className="inline-flex items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-50">
+          <button onClick={() => decide("reject")} disabled={decided}
+            className="inline-flex items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50">
             {busy === "reject" ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />} Reject
           </button>
           <span className="ml-auto text-xs text-zinc-400">Every step is logged below</span>
@@ -183,10 +215,17 @@ function TimelineItem({ e, last, fresh, now }: { e: CaseEvent; last: boolean; fr
           <span className="ml-auto shrink-0 text-xs tabular-nums text-zinc-400" title={fmtTime(e.ts)}>{relTime(e.ts, now)}</span>
         </div>
         <div className="mt-0.5 flex items-center gap-1.5 text-xs text-zinc-500">
-          {e.actor === "fo" ? <Bot className="h-3 w-3" /> : null}{ACTOR[e.actor]}
+          {e.actor === "fo" ? <Bot className="h-3 w-3" /> : null}{ACTOR[e.actor] ?? e.actor}
         </div>
         {e.pending ? <p className="mt-1.5 text-sm text-amber-700">Waiting for your decision — see the approval card above.</p>
-          : e.detail && <p className="mt-1.5 text-sm leading-relaxed text-zinc-600">{e.detail}</p>}
+          : e.detail && !(e.evidence && Object.keys(e.evidence).length) && <p className={cx("mt-1.5 whitespace-pre-wrap text-sm leading-relaxed", e.kind === "escalated_to_human" ? "rounded-md bg-amber-50 px-3 py-2 text-amber-900" : "text-zinc-600")}>{e.detail}</p>}
+        {e.evidence && typeof e.evidence === "object" && Object.keys(e.evidence).length > 0 && (
+          <dl className="mt-2 grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-1 rounded-lg border border-zinc-200 bg-zinc-50/70 px-3 py-2 text-xs">
+            {Object.entries(e.evidence).map(([k2, v]) => (
+              <div key={k2} className="contents"><dt className="text-zinc-400">{k2.replace(/_/g, " ")}</dt><dd className="text-zinc-700">{typeof v === "string" ? v : JSON.stringify(v)}</dd></div>
+            ))}
+          </dl>
+        )}
         {e.fo_conversation_id && <p className="mt-1 font-mono text-[11px] text-zinc-400">fo conversation · {e.fo_conversation_id}</p>}
         {expandable && (
           <button onClick={() => setOpen((o) => !o)} data-expand

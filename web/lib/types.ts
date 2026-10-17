@@ -1,26 +1,27 @@
 export type CaseType = "card_dispute" | "insurance_claim" | "package_claim";
 export type CaseStatus =
   | "new" | "classified" | "gathering_evidence" | "awaiting_approval" | "contacting"
-  | "awaiting_reply" | "follow_up_scheduled" | "resolved" | "rejected" | "failed";
+  | "awaiting_reply" | "follow_up_scheduled" | "resolved" | "rejected" | "failed" | "escalated"
+  | (string & {}); // unknown statuses from the backend render with a neutral pill
 
 export interface Case {
   id: string;
   type: CaseType;
   title: string;
-  counterparty: string;
-  amount_cents: number;
+  counterparty: string | null; // backend may send null before classification
+  amount_cents: number | null;
   currency: string;
   status: CaseStatus;
   created_at: string;
   updated_at: string;
-  confidence?: number; // 0..1
+  confidence?: number | null; // 0..1
   mock?: boolean;
 }
 
 export type EventKind =
   | "classified" | "evidence_gathered" | "approval_requested" | "approved" | "rejected"
   | "call_placed" | "email_sent" | "reply_received" | "follow_up_scheduled" | "resolved"
-  | "escalated_to_human" | "note";
+  | "escalated_to_human" | "note" | (string & {});
 
 export interface TranscriptTurn { speaker: string; text: string; ts?: string }
 export interface EmailBody { from: string; to: string; subject: string; body: string }
@@ -31,9 +32,10 @@ export interface CaseEvent {
   ts: string;
   kind: EventKind;
   title: string;
-  detail?: string;
-  actor: "agent" | "fo" | "human" | "counterparty";
-  proposed_action?: string;
+  detail?: string | null;
+  actor: "agent" | "fo" | "human" | "counterparty" | (string & {});
+  proposed_action?: string | ProposedAction;
+  evidence?: Record<string, unknown>;
   pending?: boolean;
   transcript?: TranscriptTurn[];
   email?: EmailBody;
@@ -49,3 +51,24 @@ export interface CreateCaseBody {
   filenames?: string[];
 }
 export interface ApprovalBody { event_id: string; decision: "approve" | "reject"; note?: string }
+
+/** Structured proposed action as sent by the real backend. */
+export interface ProposedAction {
+  channel: "email" | "call" | "card" | (string & {});
+  to?: string | null;
+  acting_as?: string | null;
+  message?: string | null;
+  spend_cents?: number | null;
+  approval_id?: string;
+}
+
+export interface AuditRow {
+  id: number;
+  ts: number | string; // epoch seconds (backend) or ISO
+  case_id: string;
+  actor: string;
+  event: string; // approval_requested | approval_decided | fo_ask_authorized | ask_fo_sent | ...
+  detail: string | null; // JSON-encoded object
+  row_hash: string;
+}
+export interface AuditResponse { chain_ok: boolean; rows: AuditRow[] }

@@ -1,5 +1,6 @@
 // MOCK DATA LAYER — in-memory store + simulator. Never places real calls, emails or payments.
-import type { Case, CaseEvent, CaseWithEvents, CreateCaseBody, ApprovalBody, CaseType, EventKind } from "./types";
+import { createHash } from "node:crypto";
+import type { Case, CaseEvent, CaseWithEvents, CreateCaseBody, ApprovalBody, CaseType, AuditRow, AuditResponse } from "./types";
 
 type Listener = (msg: { event: "case_updated"; data: Case } | { event: "case_event"; data: CaseEvent }) => void;
 
@@ -9,6 +10,7 @@ interface Store {
   listeners: Set<Listener>;
   timers: Set<ReturnType<typeof setTimeout>>;
   seq: number;
+  audit: AuditRow[];
 }
 
 const g = globalThis as unknown as { __gsdStore?: Store };
@@ -19,7 +21,7 @@ const MIN = 60_000, HOUR = 60 * MIN, DAY = 24 * HOUR;
 
 function store(): Store {
   if (!g.__gsdStore) {
-    g.__gsdStore = { cases: new Map(), events: new Map(), listeners: new Set(), timers: new Set(), seq: 100 };
+    g.__gsdStore = { cases: new Map(), events: new Map(), listeners: new Set(), timers: new Set(), seq: 100, audit: [] };
     seed(g.__gsdStore);
   }
   return g.__gsdStore;
@@ -28,6 +30,24 @@ function store(): Store {
 function nid(prefix: string) { const s = store(); s.seq += 1; return `${prefix}_${s.seq.toString(36)}${Math.random().toString(36).slice(2, 6)}`; }
 
 function emit(msg: Parameters<Listener>[0]) { for (const l of store().listeners) { try { l(msg); } catch { /* ignore */ } } }
+
+// ---------- hash-chained audit log (mirrors backend GET /api/audit) ----------
+function rowHash(prev: string, r: Omit<AuditRow, "row_hash">) {
+  return createHash("sha256").update(prev + JSON.stringify([r.id, r.ts, r.case_id, r.actor, r.event, r.detail])).digest("hex");
+}
+function audit(case_id: string, actor: string, event: string, detail: Record<string, unknown>, tsSec = Date.now() / 1000, s: Store = store()) {
+  s.audit ??= [];
+  const prev = s.audit.at(-1)?.row_hash ?? "0".repeat(64);
+  const base = { id: s.audit.length + 1, ts: tsSec, case_id, actor, event, detail: JSON.stringify(detail) };
+  s.audit.push({ ...base, row_hash: rowHash(prev, base) });
+}
+export function getAudit(): AuditResponse {
+  const rows = store().audit ?? []; let prev = "0".repeat(64); let ok = true;
+  for (const r of rows) { const { row_hash, ...base } = r; if (rowHash(prev, base) !== row_hash) ok = false; prev = row_hash; }
+  return { chain_ok: ok, rows };
+}
+
+const INJECTION = /(ignore (all |any )?(previous|prior) instructions|system prompt|you are now|disregard .*instructions|send .* gift card|wire \$)/i;
 
 export function subscribe(l: Listener) { const s = store(); s.listeners.add(l); return () => { s.listeners.delete(l); }; }
 
@@ -82,7 +102,7 @@ function classify(text: string): { type: CaseType; counterparty: string; amount_
 }
 
 function proposedAction(c: Case) {
-  const amt = `$${(c.amount_cents / 100).toFixed(2)}`;
+  const amt = `$${((c.amount_cents ?? 0) / 100).toFixed(2)}`;
   if (c.type === "card_dispute") return `Call ${c.counterparty} disputes line, request provisional credit of ${amt}`;
   if (c.type === "package_claim") return `Call ${c.counterparty} claims line, file a lost-package claim for ${amt}`;
   return `Email ${c.counterparty} claims team, open a claim for ${amt} with attached evidence`;
@@ -106,13 +126,21 @@ export function createCase(body: CreateCaseBody): Case {
       addEvent(id, { kind: "classified", actor: "agent", title: `Classified as ${label}`, detail: `Counterparty: ${info.counterparty} · Amount: $${(info.amount_cents / 100).toFixed(2)} · Source: ${body.source}` });
     },
     () => {
+      if (INJECTION.test(body.text)) {
+        patchCase(id, { status: "escalated" });
+        addEvent(id, { kind: "escalated_to_human", actor: "agent", title: "Escalated to a human EA — possible prompt injection",
+          detail: "The submitted text contains instructions aimed at the agent (e.g. \"ignore previous instructions\"). Nothing was sent. A human EA will review this case." });
+        return;
+      }
       patchCase(id, { status: "gathering_evidence" });
       const files = body.filenames?.length ? body.filenames.join(", ") : "pasted text";
       addEvent(id, { kind: "evidence_gathered", actor: "agent", title: "Evidence gathered", detail: `Extracted key facts from ${files}. Matched against statement and order history.` });
     },
     () => {
       const cur = store().cases.get(id)!;
+      if (cur.status === "escalated") return;
       patchCase(id, { status: "awaiting_approval" });
+      audit(id, "agent", "approval_requested", { action: cur.type === "insurance_claim" ? "email" : "call", target: cur.counterparty });
       addEvent(id, { kind: "approval_requested", actor: "agent", title: "Approval requested", pending: true, proposed_action: proposedAction(cur), detail: "Fo will act on your behalf only after you approve. No payment will be made." });
     },
   ]);
@@ -125,23 +153,25 @@ export function decide(case_id: string, body: ApprovalBody): CaseEvent | { error
   if (!ev || ev.kind !== "approval_requested") return { error: "approval event not found", status: 404 };
   if (!ev.pending) return { error: "approval already decided", status: 409 };
   updateEvent(case_id, ev.id, { pending: false });
+  audit(case_id, "user", "approval_decided", { decision: body.decision === "approve" ? "approved" : "rejected" });
   if (body.decision === "reject") {
     const r = addEvent(case_id, { kind: "rejected", actor: "human", title: "Rejected by you", detail: body.note || "Agent will not take this action." });
     patchCase(case_id, { status: "rejected" });
     return r;
   }
-  const a = addEvent(case_id, { kind: "approved", actor: "human", title: "Approved by you", detail: body.note || ev.proposed_action });
+  const a = addEvent(case_id, { kind: "approved", actor: "human", title: "Approved by you", detail: body.note || (typeof ev.proposed_action === "string" ? ev.proposed_action : undefined) });
   patchCase(case_id, { status: "contacting" });
+  audit(case_id, "system", "fo_ask_authorized", { target: c.counterparty });
   runResolution(store().cases.get(case_id)!);
   return a;
 }
 
 function runResolution(c: Case) {
-  const id = c.id; const amt = `$${(c.amount_cents / 100).toFixed(2)}`; const conv = `fo_conv_${Math.random().toString(36).slice(2, 10)}`;
+  const id = c.id; const amt = `$${((c.amount_cents ?? 0) / 100).toFixed(2)}`; const conv = `fo_conv_${Math.random().toString(36).slice(2, 10)}`;
   const rep = c.type === "card_dispute" ? "Dana (Disputes)" : c.type === "package_claim" ? "Marcus (Claims)" : "Claims rep";
-  const domain = c.counterparty.toLowerCase().replace(/[^a-z]/g, "") || "counterparty";
+  const domain = (c.counterparty ?? "").toLowerCase().replace(/[^a-z]/g, "") || "counterparty";
   schedule([
-    () => addEvent(id, {
+    () => { audit(id, "fo", "ask_fo_sent", { mock: true, channel: "call", target: c.counterparty }); addEvent(id, {
       kind: "call_placed", actor: "fo", title: `Fo called ${c.counterparty}`, detail: "Call completed · 4m 12s", fo_conversation_id: conv,
       transcript: [
         { speaker: rep, text: `Thanks for calling ${c.counterparty}, how can I help?` },
@@ -152,8 +182,8 @@ function runResolution(c: Case) {
         { speaker: "Fo", text: "Great, could you share the reference number? I'll follow up by email with evidence." },
         { speaker: rep, text: "Reference is DSP-55821. Expect an update within 2 business days." },
       ],
-    }),
-    () => { patchCase(id, { status: "awaiting_reply" }); addEvent(id, {
+    }); },
+    () => { patchCase(id, { status: "awaiting_reply" }); audit(id, "fo", "ask_fo_sent", { mock: true, channel: "email", target: `claims@${domain}.example` }); addEvent(id, {
       kind: "email_sent", actor: "fo", title: `Fo emailed ${c.counterparty}`, fo_conversation_id: conv,
       email: { from: "dhyey@fo-agent.example", to: `claims@${domain}.example`, subject: `Ref DSP-55821 — ${c.title}`,
         body: `Hello,\n\nFollowing up on today's call (ref DSP-55821). Attached are the receipt and supporting screenshots for the ${amt} claim.\n\nPlease confirm once reviewed.\n\nThanks,\nFo, on behalf of Dhyey Desai` },
@@ -174,6 +204,18 @@ function seed(s: Store) {
     s.cases.set(c.id, c); s.events.set(c.id, evs.map((e) => ({ ...e, case_id: c.id, mock: true })));
   };
   const now = Date.now(); const at = (ms: number) => new Date(now - ms).toISOString();
+  const sec = (ms: number) => (now - ms) / 1000;
+  const A = (cid: string, actor: string, ev: string, d: Record<string, unknown>, ms: number) => audit(cid, actor, ev, d, sec(ms), s);
+  A("case_lemonade", "agent", "approval_requested", { action: "email", target: "claims@lemonade.example" }, 6 * DAY - 2 * HOUR);
+  A("case_lemonade", "user", "approval_decided", { decision: "approved" }, 5 * DAY + 20 * HOUR);
+  A("case_lemonade", "system", "fo_ask_authorized", { target: "claims@lemonade.example" }, 5 * DAY + 20 * HOUR - 1000);
+  A("case_lemonade", "fo", "ask_fo_sent", { mock: true, channel: "email", target: "claims@lemonade.example" }, 5 * DAY + 19 * HOUR);
+  A("case_ups", "agent", "approval_requested", { action: "call", target: "UPS claims" }, 2 * DAY - 30 * MIN);
+  A("case_ups", "user", "approval_decided", { decision: "approved" }, DAY + 20 * HOUR);
+  A("case_ups", "system", "fo_ask_authorized", { target: "UPS claims" }, DAY + 20 * HOUR - 1000);
+  A("case_ups", "fo", "ask_fo_sent", { mock: true, channel: "call", target: "UPS claims" }, DAY + 19 * HOUR);
+  A("case_ups", "fo", "ask_fo_sent", { mock: true, channel: "email", target: "claims@ups.example" }, DAY + 18 * HOUR);
+  A("case_chase", "agent", "approval_requested", { action: "call", target: "Chase disputes line" }, 2 * MIN);
 
   put({ id: "case_chase", type: "card_dispute", title: "Double charge at Blue Bottle Coffee", counterparty: "Chase", amount_cents: 18420, currency: "USD",
     status: "awaiting_approval", created_at: at(14 * MIN), updated_at: at(2 * MIN), confidence: 0.92, mock: true }, [

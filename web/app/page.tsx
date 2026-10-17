@@ -7,7 +7,7 @@ import { useLive } from "@/lib/useLive";
 import type { Case } from "@/lib/types";
 import { LiveDot, SimBadge, StatusPill, TypeIcon, cx, money, relTime, typeLabel, useNow } from "@/components/ui";
 
-const OPEN = new Set(["new", "classified", "gathering_evidence", "awaiting_approval", "contacting", "awaiting_reply", "follow_up_scheduled"]);
+const OPEN = new Set(["new", "classified", "gathering_evidence", "awaiting_approval", "contacting", "awaiting_reply", "follow_up_scheduled", "escalated"]);
 
 export default function CasesPage() {
   const [cases, setCases] = useState<Case[] | null>(null);
@@ -34,7 +34,7 @@ export default function CasesPage() {
 
   const open = cases?.filter((c) => OPEN.has(c.status)).length ?? 0;
   const needs = cases?.filter((c) => c.status === "awaiting_approval").length ?? 0;
-  const recovered = cases?.filter((c) => c.status === "resolved").reduce((s, c) => s + c.amount_cents, 0) ?? 0;
+  const recovered = cases?.filter((c) => c.status === "resolved").reduce((s, c) => s + (c.amount_cents ?? 0), 0) ?? 0;
 
   return (
     <div className="space-y-6">
@@ -79,7 +79,7 @@ export default function CasesPage() {
                     <div className="text-xs text-zinc-500">{typeLabel(c.type)}</div>
                   </div>
                 </div>
-                <span className="truncate text-sm text-zinc-700">{c.counterparty}</span>
+                <span className="truncate text-sm text-zinc-700">{c.counterparty ?? "—"}</span>
                 <span className="text-right text-sm font-medium tabular-nums text-zinc-900">{c.amount_cents ? money(c.amount_cents, c.currency) : "—"}</span>
                 <span><StatusPill status={c.status} /></span>
                 <span className="text-right text-xs tabular-nums text-zinc-500">{relTime(c.updated_at, now)}</span>

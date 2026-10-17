@@ -7,7 +7,10 @@ import { cx } from "./ui";
 
 export function Header() {
   const path = usePathname();
-  const nav = [{ href: "/", label: "Cases", active: path === "/" || path.startsWith("/cases") }];
+  const nav = [
+    { href: "/", label: "Cases", active: path === "/" || path.startsWith("/cases") },
+    { href: "/audit", label: "Audit log", active: path.startsWith("/audit") },
+  ];
   return (
     <header className="sticky top-0 z-20 border-b border-zinc-200/80 bg-white/80 backdrop-blur">
       <div className="mx-auto flex h-14 max-w-6xl items-center gap-6 px-6">
