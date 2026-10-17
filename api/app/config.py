@@ -3,9 +3,8 @@ from pathlib import Path
 
 try:
     from dotenv import load_dotenv  # optional
-    # Repo-root .env in this worktree, then the shared copy where fo lead keeps keys.
-    load_dotenv(Path(__file__).resolve().parents[2] / ".env")
-    load_dotenv("/workspace/gsd-hackathon/.env")
+    # Repo-root .env (relative to this file). ENV_FILE overrides for local setups.
+    load_dotenv(os.environ.get("ENV_FILE") or Path(__file__).resolve().parents[2] / ".env")
 except Exception:
     pass
 

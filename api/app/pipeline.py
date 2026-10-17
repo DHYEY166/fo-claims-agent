@@ -203,29 +203,44 @@ def _stray_recipients(fo, conv, target, fo_text):
     return sorted(a for a in found if a != target.lower() and not a.endswith(_OWN_DOMAINS))
 
 def _mock_contact(case_id, action):
-    tb.call("log", case_id, "fo", "ask_fo_sent", {"mock": True, "target": action.get("to")})
+    conv = f"mock-conv-{case_id}"
+    db.update_case(case_id, fo_conversation_id=conv)
+    tb.call("log", case_id, "fo", "ask_fo_sent", {"mock": True, "target": action.get("to"), "conversationId": conv})
     step = config.MOCK_STEP_SECONDS
+    c = db.get_case(case_id)
+    who = c.get("counterparty") or "Support"
     time.sleep(step)
-    emit(case_id, "email_sent", "[MOCK] Fo emailed the counterparty", "fo", mock=True,
-         email={"from": "fo@wajo (mock)", "to": action.get("to") or "test-target@example.com",
-                "subject": "Dispute filing", "body": action["message"]})
+    emit(case_id, "call_placed", f"[MOCK] Fo called {who} (test line)", "fo", mock=True, fo_conversation_id=conv,
+         transcript=[
+             {"speaker": who, "text": f"Thanks for calling {who}, how can I help?"},
+             {"speaker": "Fo", "text": f"Hi, I'm calling on behalf of a customer to open a {c['type'].replace('_',' ')}"
+                                       + (f" for ${c['amount_cents']/100:.2f}" if c.get('amount_cents') else "") + "."},
+             {"speaker": who, "text": "I can open that. Can you send the details in writing?"},
+             {"speaker": "Fo", "text": "Yes, I'll email them right now. Please reply with a reference number."},
+         ])
+    time.sleep(step)
+    emit(case_id, "email_sent", "[MOCK] Fo emailed the claim details", "fo", mock=True, fo_conversation_id=conv,
+         email={"from": "fo@wajo (mock)", "to": action.get("to"),
+                "subject": f"{c['type'].replace('_',' ').title()} filing", "body": action["message"]})
     set_status(case_id, "awaiting_reply")
     schedule_follow_up(case_id)
     time.sleep(step)
     on_counterparty_reply(case_id, "[MOCK] Thanks, we received your claim. Reference #MOCK-4821. "
-                          "Expect a provisional credit in 3 to 5 business days.", mock=True, resolve=True)
+                          "Expect a provisional credit in 3 to 5 business days.", conv=conv, mock=True, resolve=True)
 
 def schedule_follow_up(case_id):
     at = (datetime.now(timezone.utc) + timedelta(seconds=config.FOLLOW_UP_SECONDS)).isoformat()
     c = db.get_case(case_id)
     if c["status"] == "awaiting_reply":
         set_status(case_id, "follow_up_scheduled", follow_up_at=at)
-        emit(case_id, "follow_up_scheduled", "Follow-up scheduled", "agent", detail=f"If no reply by {at}")
+        emit(case_id, "follow_up_scheduled", "Follow-up scheduled", "agent", detail=f"If no reply by {at}",
+             fo_conversation_id=c.get("fo_conversation_id"))
 
 def on_counterparty_reply(case_id, text, conv=None, mock=False, resolve=False):
     c = db.get_case(case_id)
     if c["status"] in ("resolved", "failed", "rejected"):
         return
+    conv = conv or c.get("fo_conversation_id")
     emit(case_id, "reply_received", "Reply received", "counterparty", detail=text, mock=mock,
          fo_conversation_id=conv)
     if c["status"] == "follow_up_scheduled":

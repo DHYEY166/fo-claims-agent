@@ -1,11 +1,11 @@
 """Wires fo trust qa's `trust/` package (approval gate, hash-chained audit log, polling) into the API.
-After merge, trust/ lives at the repo root next to api/; until then fall back to the trust worktree."""
+trust/ lives at the repo root next to api/. TRUST_PATH can point elsewhere before the branches merge."""
 import os, sqlite3, sys, threading
 from pathlib import Path
 from . import config
 
 _root = Path(__file__).resolve().parents[2]
-for p in (str(_root), os.environ.get("TRUST_PATH", "/workspace/gsd-wt/trust")):
+for p in (str(_root), os.environ.get("TRUST_PATH", "")):
     if (Path(p) / "trust" / "gate.py").exists() and p not in sys.path:
         sys.path.insert(0, p); break
 
