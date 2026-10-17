@@ -46,7 +46,7 @@ Don't say the reply shows on the timeline. With no webhook tunnel tonight, it wo
 **1:45 to 2:00. Next by Monday** [face cam]
 "Fo already chases lost packages. We're adding the case file, the evidence, and the guardrails. By Monday: follow-ups that keep going until the case is closed. Thanks."
 
-**If the live step fails on stage** (no Fo step on the timeline after about 90 seconds, or an error; a held draft is not a failure, use the Fo held line). A later "No webhook or reply arrived" escalation is not a failure, it's the honest state with no tunnel: don't press Approve again, because that spends a send. Switch to Tab 2 and open a case that's already resolved there. Say: "The live send didn't come through just now, so here's the same flow on our mock run, which is labeled MOCK. We did send one live email at rehearsal." Fo trust qa confirmed this sent (read-only get_fo_conversation, Fo reported "Sent" at 4:36 PM ET / 1:36 PM PT with a message id). Drop the sentence only if Dhyey finds no email in the test inbox.
+**If the live step fails on stage** (no Fo step on the timeline after about 90 seconds, or an error; a held draft is not a failure, use the Fo held line). A later "No webhook or reply arrived" escalation is not a failure, it's the honest state with no tunnel: don't press Approve again, because that spends a send. Switch to Tab 2 and open a case that's already resolved there. Say: "The live send didn't come through just now, so here's the same flow on our mock run, which is labeled MOCK. We sent one live email at rehearsal, and it arrived in the test inbox." Verified: Fo reported "Sent" at 4:36 PM ET / 1:36 PM PT (fo trust qa, read-only get_fo_conversation), and Dhyey confirmed it in the test bank inbox.
 
 ---
 
@@ -57,7 +57,7 @@ Don't say the reply shows on the timeline. With no webhook tunnel tonight, it wo
 | Intake and classification | Agent craft (20) | Live Claude run: card dispute at 95%, Chase, $89.99, evidence fields (fo builder, classify.v2 on 76039ad); line citations on 7 of 8 fields and a code-computed filing deadline (fo builder, 76039ad, STREAMFLIX run) |
 | Approval gate | Trust by design (20) | Approve card, `Trust.authorize`, $0 spend shown; double approve gets 409 (fo trust qa, 9 of 9 API tests); 3-a-day send cap (fo trust qa, cb675b4, 3 passed, tests the cap function directly) |
 | Escalation and audit | Trust by design (20) | Vague claim at 0.10 escalated; injection flagged and escalated; `chain_ok: true` |
-| Fo send | Gets real things done (25) | Real Fo through OAuth; PONG round trip passed in 12.9 s (fo builder, `:8020`); rehearsal email sent to the test bank inbox at 4:36 PM ET / 1:36 PM PT after Fo held its first-ever email for Dhyey's go-ahead; Fo reported "Sent" with a message id, no calls, nothing spent (fo trust qa, read-only get_fo_conversation) |
+| Fo send | Gets real things done (25) | Real Fo through OAuth; PONG round trip passed in 12.9 s (fo builder, `:8020`); rehearsal email sent to the test bank inbox at 4:36 PM ET / 1:36 PM PT after Fo held its first-ever email for Dhyey's go-ahead; Fo reported "Sent" with a message id, no calls, nothing spent (fo trust qa, read-only get_fo_conversation); Dhyey confirmed receipt: Chase, $89.99 STREAMFLIX, card last 4 only, dated October 12, 2026, labeled a hackathon demo test |
 | Follow-ups until resolved | Pushes the frontier (25) | Planned for Monday; say "next", not "done" |
 
 ## Don't say tonight
