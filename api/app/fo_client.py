@@ -1,14 +1,18 @@
 """Minimal MCP Streamable-HTTP client for the Fo profile (https://mcp.api.wajo.ai/fo).
 Tool names/params verified against the live tools/list: ask_fo(message, conversationId?, newConversation?),
 get_fo_reply(conversationId?, waitSeconds 0..40), get_fo_conversation(conversationId), list_fo_conversations()."""
-import json, time, logging
+import json
+import time
+import logging
 import httpx
 from . import config
 
 log = logging.getLogger("fo")
 
+
 class FoError(Exception):
     pass
+
 
 class FoClient:
     def __init__(self, url=None, api_key=None, timeout=60.0):
@@ -31,7 +35,8 @@ class FoClient:
         if params is not None:
             body["params"] = params
         if not notify:
-            self._id += 1; body["id"] = self._id
+            self._id += 1
+            body["id"] = self._id
         r = self.http.post(self.url, headers=self._headers(), json=body)
         if r.headers.get("mcp-session-id"):
             self.session_id = r.headers["mcp-session-id"]
@@ -60,7 +65,11 @@ class FoClient:
                                      "clientInfo": {"name": "fo-claims", "version": "0.1"}})
             self._rpc("notifications/initialized", notify=True)
 
+    BLOCKED_TOOLS = {"start_fo_call"}  # email-only demo: no phone calls from this service
+
     def call(self, tool, args):
+        if tool in self.BLOCKED_TOOLS:
+            raise FoError(f"{tool} is disabled (email-only demo)")
         self.connect()
         res = self._rpc("tools/call", {"name": tool, "arguments": args})
         return parse_tool_result(res)
@@ -76,6 +85,18 @@ class FoClient:
     def poll(self, conversation_id, wait=40):
         return self.call("get_fo_reply", {"conversationId": conversation_id, "waitSeconds": wait})
 
+    def poll_with_retry(self, conversation_id, errors, attempts=3):
+        """One get_fo_reply with capped backoff on transport errors. Errors are recorded for the trace."""
+        for i in range(attempts):
+            try:
+                return self.poll(conversation_id)
+            except (FoError, httpx.HTTPError) as e:
+                errors.append(str(e)[:200])
+                if i == attempts - 1:
+                    return {"status": "failed", "response": f"get_fo_reply failed {attempts}x: {e}"}
+                time.sleep(2 ** i * 2)
+        return {"status": "failed"}
+
     def ask_and_wait(self, message, new=True, max_seconds=600, on_progress=None):
         reply = self.ask(message, new=new)
         conv = reply.get("conversationId")
@@ -90,6 +111,7 @@ class FoClient:
             conv = reply.get("conversationId") or conv
         reply["conversationId"] = conv
         return reply
+
 
 def parse_tool_result(res: dict) -> dict:
     """Normalize a tools/call result into a dict with at least status/text/conversationId when present."""

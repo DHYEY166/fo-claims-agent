@@ -4,3 +4,6 @@ httpx
 anthropic
 python-dotenv
 pytest
+pydantic>=2
+flake8
+mypy
