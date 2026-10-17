@@ -16,15 +16,15 @@ Spoken length: about 280 words at a calm pace.
 "It's a Fo agent that files card disputes and insurance or package claims for you and follows up until they're resolved. Every problem becomes a case with its evidence and a full history."
 
 **0:30 to 1:00. Intake and classification** [New claim, paste a test duplicate-charge email, open the case]
-"I paste a test email about a duplicate charge. Claude reads it, calls it a card dispute at 95 percent confidence, picks Chase Bank as the counterparty, and pulls out the amount, merchant, date, and order number. Card numbers are redacted the moment they come in."
+"I paste a test email about a duplicate charge. Claude reads it, calls it a card dispute at 95 percent confidence, picks Chase Bank as the counterparty, and pulls out the amount, merchant, date, and order number. Card numbers are masked before anything is stored."
 
 **1:00 to 1:25. The approval gate** [Approve before action card]
 "Before anything goes out, the agent stops and shows me exactly what Fo will do: who it emails, what it says, and that it spends zero dollars. Nothing is sent until I press Approve." [press Approve]
-"Fo takes it from here. Tonight the send is simulated because we're still connecting our Fo key, and that's what the badge up here means." SWAP IF REAL: "Fo just emailed our stand-in bank, a test inbox we own, and here's its reply."
+"Fo takes it from here. Tonight the send is simulated because we're still connecting our Fo key, and that's what the badge up here means." SWAP IF REAL: "Fo just emailed our test bank inbox, and here's its reply."
 [timeline runs to Resolved] "The reply comes back, the case closes as resolved, and every step is on the timeline."
 
 **1:25 to 1:45. When it should not act** [escalated case, then Audit log]
-"If a claim is too vague, or a forwarded email tries to slip in its own instructions, the agent doesn't act. It hands the case to a human. Every step lands in an audit log where each entry is chained to the one before, so a changed record shows."
+"If a claim is too vague, the agent doesn't act. It hands the case to a human. If a pasted email tries to add another recipient, that text never reaches Fo. And approving twice still sends exactly one email. Every step lands in an audit log where each entry is chained to the one before, so a changed record shows."
 
 **1:45 to 2:00. Next by Monday** [face cam]
 "Fo already chases lost packages. We're adding the case file, the evidence, and the guardrails. By Monday: real Fo emails to our test inbox, and follow-ups that keep going until the case is closed. Thanks."
@@ -44,5 +44,7 @@ Spoken length: about 280 words at a calm pace.
 ## Don't say tonight
 - Anything about phone calls. The demo is email only, by Dhyey's decision.
 - That Fo sent a real email (not until a real run is posted).
-- That injected text is stripped from Fo's prompt. The escalation is tested, but the case never reached the prompt in fo trust qa's run.
+- More than the tests show: pasted text never reaches Fo, card numbers are masked before storage, double approvals are blocked (fo trust qa, 9 of 9 live API tests on 60ab500).
+- The real test bank address. On screen and aloud it is only "test bank inbox".
+- A valid signed webhook getting through (webhook secret isn't set yet).
 - Any user numbers or recovery amounts.
