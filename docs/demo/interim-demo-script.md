@@ -9,7 +9,7 @@ Setup (open before 8 PM ET / 5 PM PT, restart nothing):
 
 What's real: Claude classification, the approval gate, `Trust.authorize`, double-approve blocking, escalation, redaction at intake, the hash-chained audit log, and on Tab 1 the Fo email to the test bank inbox.
 Sends left tonight: exactly 2 under the 3-a-day cap. One is the 7:30 PM ET / 4:30 PM PT rehearsal and one is on stage. Approve once only.
-On Tab 1, start a fresh case. Don't open the leftover test cases (`case_d26856e7c2`, the old `follow_up_scheduled` one, `case_cbd0d1cf1a` (it was handled by the old code and still shows HELD, even though Dhyey's go in Claude sent it), and the simulation cases `case_51db910d4e`, `case_1885018b4b`, `case_1d3d2a381d` if they're still there). Never open the Fo conversation itself on stage, because they were never live sends.
+On Tab 1, start a fresh case. Don't open either leftover case on `:3101`: `case_d26856e7c2` is an old MOCK case with a fake send, and `case_cbd0d1cf1a` is the rehearsal case, which now shows a send that a human recorded after the fact. The simulation cases are already deleted. Never open the Fo conversation itself or the mail app on stage.
 
 Spoken length: about 290 words at a calm pace.
 
@@ -33,8 +33,10 @@ Main flow (expected: after the 4:36 PM ET / 1:36 PM PT rehearsal, Fo said it won
 - While the step reads "Fo drafted email to test bank inbox", that is the neutral default, not a hold and not a send: keep waiting. When the step shows sent (LIVE badge, "Sent to test bank inbox", which appears only after the backend confirms): "Fo sent it to our test bank inbox. The bank's reply lands in the test inbox, and the agent keeps the case open until it's resolved."
 
 Fallback 1, Fo holds anyway (amber "HELD BY FO: waiting for go-ahead", "Nothing has been sent yet"):
-- If a "Give Fo the go-ahead" approval is offered (only if `99d042b` passed trust qa's review and is live on `:8020`): "Fo drafted it and is holding it until I say go. That's a second approval, on Fo's side." [press it once] Say "Fo sent it to our test bank inbox" only when the step shows a confirmed send.
+- If a "Give Fo the go-ahead" approval is offered (only once `f80d51a` is live on `:8020`, after fo builder posts the restart): "Fo drafted it and is holding it until I say go. That's a second approval, on Fo's side." [press it once] Say "Fo sent it to our test bank inbox" only when the step shows a confirmed send.
 - If no go-ahead approval is offered, or no confirmed send about 90 seconds after it: stop at the held step and say "Fo drafted it and is holding it until I say go. That's a second approval, on Fo's side." [point at the "Fo reported" block] Press nothing else, don't say go to Fo on stage, and don't mention follow-ups for this case.
+
+Fallback 2, Fo's reply is unclear (gray UNCONFIRMED badge, "Couldn't confirm Fo sent the email", escalated banner): "Fo answered, but it didn't clearly say it sent the email. So the agent won't guess. It escalates the case to me instead of marking it sent." Press nothing else, and don't say sent.
 
 Last fallback: the MOCK tab (see below).
 Never say "emailing right now" or "sent" until the timeline shows a confirmed send.
