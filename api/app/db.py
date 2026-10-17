@@ -91,6 +91,13 @@ def update_event_payload(event_id, **payload) -> dict:
         c.execute("UPDATE events SET payload=? WHERE id=?", (json.dumps(cur), event_id))
     return get_event(event_id)
 
+def claim_pending(event_id) -> bool:
+    """Atomically flip an approval from pending to decided. True only for the single winning caller."""
+    with _lock, conn() as c:
+        cur = c.execute("UPDATE events SET payload=json_set(payload,'$.pending',json('false')) "
+                        "WHERE id=? AND json_extract(payload,'$.pending')=1", (event_id,))
+        return cur.rowcount == 1
+
 def get_event(event_id):
     with conn() as c:
         r = c.execute("SELECT * FROM events WHERE id=?", (event_id,)).fetchone()

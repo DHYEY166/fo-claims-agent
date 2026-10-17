@@ -22,6 +22,6 @@ FO_WEBHOOK_SECRET = env("FO_WEBHOOK_SECRET")
 # Trust: every outbound Fo action is pinned to this test target. Never a real business.
 FO_TEST_TARGET = env("FO_TEST_TARGET")
 CORS_ORIGINS = env("CORS_ORIGINS", "http://localhost:3100").split(",")
-CONFIDENCE_THRESHOLD = float(env("CONFIDENCE_THRESHOLD", "0.6"))
+CONFIDENCE_THRESHOLD = float(env("CONFIDENCE_THRESHOLD", "0.7"))
 FOLLOW_UP_SECONDS = int(env("FOLLOW_UP_SECONDS", "20"))
 MOCK_STEP_SECONDS = float(env("MOCK_STEP_SECONDS", "2"))
