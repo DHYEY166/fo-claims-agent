@@ -29,12 +29,12 @@ Spoken length: about 290 words at a calm pace.
 "This is live. We're connected to real Fo through OAuth, and Fo is writing the email to our test bank inbox now." [wait for Fo's step on the timeline, up to about 90 seconds; rehearsal took 62. The small green "Live" dot at top right only means the dashboard is connected; it is not the send]
 Read the Fo step, then follow the branch it shows.
 
-Main flow (Option 2, only if the "Give Fo the go-ahead" button is live on `:8020` after trust qa's review by 6:30 PM ET / 3:30 PM PT):
-- If the step shows the amber "HELD BY FO: waiting for go-ahead" badge and "Nothing has been sent yet": "Fo drafted it and is holding it until I say go. That's a second approval, on Fo's side." Then: "Fo asks once before its first email, so I give it the go-ahead here." [press "Give Fo the go-ahead" once]
-- When the step changes to sent (LIVE badge, "sent to test bank inbox", confirmed by the backend): "Fo sent it to our test bank inbox. The bank's reply lands in the test inbox, and the agent keeps the case open until it's resolved."
-- If Fo sends without holding (the button never appears), skip straight to the "Fo sent it" line.
+Main flow (expected: after the 4:36 PM ET / 1:36 PM PT rehearsal, Fo said it won't hold emails we explicitly request, so our single Approve is the gate):
+- When the step shows sent (LIVE badge, "sent to test bank inbox", confirmed by the backend): "Fo sent it to our test bank inbox. The bank's reply lands in the test inbox, and the agent keeps the case open until it's resolved."
 
-Fallback (Option 3, if the button isn't on `:8020` tonight, or the go-ahead doesn't show a confirmed send within about 90 seconds): stop at the held step. Say: "Fo drafted it and is holding it until I say go. That's a second approval, on Fo's side." [point at the "Fo reported" block] Don't press anything else, don't say go to Fo on stage, and don't mention follow-ups for this case.
+Fallback 1, Fo holds anyway (amber "HELD BY FO: waiting for go-ahead", "Nothing has been sent yet"):
+- If a "Give Fo the go-ahead" approval is offered (only if `99d042b` passed trust qa's review and is live on `:8020`): "Fo drafted it and is holding it until I say go. That's a second approval, on Fo's side." [press it once] Say "Fo sent it to our test bank inbox" only when the step shows a confirmed send.
+- If no go-ahead approval is offered, or no confirmed send about 90 seconds after it: stop at the held step and say "Fo drafted it and is holding it until I say go. That's a second approval, on Fo's side." [point at the "Fo reported" block] Press nothing else, don't say go to Fo on stage, and don't mention follow-ups for this case.
 
 Last fallback: the MOCK tab (see below).
 Never say "emailing right now" or "sent" until the timeline shows a confirmed send.
