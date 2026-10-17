@@ -1,5 +1,5 @@
 # Presenter cheat sheet, interim demo (2:00)
-Sat Oct 17, 8 PM ET / 5 PM PT. The full script is `interim-demo-script.md`.
+Sat Oct 17, 8 PM ET / 5 PM PT. Tonight's demo is optional (it's for hardware teams). Dhyey decides whether we present. The full script is `interim-demo-script.md`.
 
 ## Before you start
 - **Tab 1 (main):** `localhost:3101`, live Fo. The email step has a LIVE badge.
@@ -9,7 +9,7 @@ Sat Oct 17, 8 PM ET / 5 PM PT. The full script is `interim-demo-script.md`.
 
 ## Cases to skip
 - **On Tab 1:** don't open `case_cbd0d1cf1a` (rehearsal) or `case_d26856e7c2` (old mock). Always start a fresh case.
-- **On Tab 2:** open only the escalated case and an already-resolved case, when the script calls for them.
+- **On Tab 2:** the list has 35 old SIMULATED test cases, 11 of them waiting on approval. Don't browse the list or press Approve on any of them. If you need a mock case, start a fresh claim from New claim and work from that case's own page. Open the escalated case and the resolved case only when the script calls for them.
 
 ## Button order
 1. On Tab 1, click **New claim**. Paste the test duplicate-charge email, submit, and open the new case.

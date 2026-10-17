@@ -1,6 +1,6 @@
 # Interim demo script (2:00), Sat Oct 17, 5 PM PT / 8 PM ET
 
-Version 4, one live email. Dhyey approved one real email to the test bank inbox, sent live on stage.
+Tonight's demo is optional (organizer's latest schedule). Dhyey decides whether we present. Version 4, one live email. Dhyey approved one real email to the test bank inbox, sent live on stage.
 
 Setup (open before 8 PM ET / 5 PM PT, restart nothing):
 - Tab 1, main: the dashboard on `:3101`, pointed at `:8020` (real Fo through OAuth, `FO_MOCK=0`). The email step carries a LIVE badge.
