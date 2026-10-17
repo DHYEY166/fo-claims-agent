@@ -76,7 +76,8 @@ function classify(text: string): { type: CaseType; counterparty: string; amount_
   const m = text.match(/\$\s?([\d,]+(?:\.\d{1,2})?)/);
   const amount_cents = m ? Math.round(parseFloat(m[1].replace(/,/g, "")) * 100) : 0;
   const amt = amount_cents ? ` $${(amount_cents / 100).toFixed(2)}` : "";
-  const title = type === "card_dispute" ? `Disputed charge${amt}` : type === "package_claim" ? `Lost / damaged package${amt}` : `Insurance claim${amt}`;
+  const merchant = text.match(/\bat ([A-Z][\w'&]*(?: [A-Z][\w'&]*){0,3})/)?.[1];
+  const title = type === "card_dispute" ? (merchant ? `Disputed charge at ${merchant}` : `Disputed charge${amt}`) : type === "package_claim" ? `Lost / damaged package${amt}` : `Insurance claim${amt}`;
   return { type, counterparty: cp, amount_cents, title, confidence };
 }
 
