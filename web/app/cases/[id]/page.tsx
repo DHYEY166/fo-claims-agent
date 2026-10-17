@@ -142,6 +142,13 @@ function prettyDetail(d: string) {
   return d.replace(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})/g, (m) => fmtTime(m));
 }
 
+function MockBadge() {
+  return (
+    <span title="Simulated step: nothing real was sent" data-mock-badge
+      className="rounded border border-amber-300 bg-amber-50 px-1.5 py-px font-mono text-[10px] font-semibold tracking-wider text-amber-800">MOCK</span>
+  );
+}
+
 function Row({ k, children }: { k: string; children: React.ReactNode }) {
   return <div className="flex items-center justify-between gap-3"><dt className="text-zinc-500">{k}</dt><dd className="truncate text-right text-zinc-900">{children}</dd></div>;
 }
@@ -205,6 +212,10 @@ function ApprovalCard({ caseId, event, onConflict }: { caseId: string; event: Ca
 
 function TimelineItem({ e, last, fresh, now }: { e: CaseEvent; last: boolean; fresh: boolean; now: number }) {
   const k = KIND[e.kind] ?? KIND.note;
+  // Simulated steps: backend flags them with mock:true and/or a "[MOCK] " title prefix.
+  const prefixed = /^\[MOCK\]\s*/i.test(e.title);
+  const isMock = e.mock === true || prefixed;
+  const title = isMock ? e.title.replace(/^\[MOCK\]\s*/i, "") : e.title;
   const expandable = !!(e.transcript?.length || e.email);
   const [open, setOpen] = useState(false);
   return (
@@ -215,7 +226,8 @@ function TimelineItem({ e, last, fresh, now }: { e: CaseEvent; last: boolean; fr
       </span>
       <div className="min-w-0 flex-1 pt-0.5">
         <div className="flex items-baseline gap-2">
-          <span className="text-sm font-medium text-zinc-900">{e.title}</span>
+          <span className="text-sm font-medium text-zinc-900">{title}</span>
+          {isMock && <MockBadge />}
           {e.kind === "approval_requested" && e.pending && <span className="rounded-full bg-amber-50 px-1.5 py-px text-[11px] font-medium text-amber-700 ring-1 ring-amber-200">pending</span>}
           <span className="ml-auto shrink-0 text-xs tabular-nums text-zinc-400" title={fmtTime(e.ts)}>{relTime(e.ts, now)}</span>
         </div>

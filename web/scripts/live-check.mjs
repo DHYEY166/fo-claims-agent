@@ -26,6 +26,8 @@ await page.waitForTimeout(500);
 await tallShot(OUT + "j-live-backend-timeline.png");
 const kinds = await page.$$eval("[data-kind]", (els) => els.map((e) => e.getAttribute("data-kind")));
 console.log("timeline kinds:", kinds.join(" > "));
+console.log("MOCK badges:", await page.locator("[data-mock-badge]").count(), "| titles still prefixed [MOCK]:",
+  await page.locator("[data-kind] span.font-medium", { hasText: "[MOCK]" }).count());
 await page.goto(`${BASE}/audit`, { waitUntil: "networkidle" }); await page.waitForSelector("text=Hash chain"); await page.waitForTimeout(800);
 await page.screenshot({ path: OUT + "k-live-backend-audit.png" });
 await page.goto(`${BASE}/`, { waitUntil: "networkidle" }); await page.waitForTimeout(800);
