@@ -16,7 +16,7 @@ Spoken length: about 280 words at a calm pace.
 "It's a Fo agent that files card disputes and insurance or package claims for you and follows up until they're resolved. Every problem becomes a case with its evidence and a full history."
 
 **0:30 to 1:00. Intake and classification** [New claim, paste a test duplicate-charge email, open the case]
-"I paste a test email about a duplicate charge. Claude reads it, calls it a card dispute at 95 percent confidence, picks Chase Bank as the counterparty, and pulls out the amount, merchant, date, and order number. Card numbers are masked before anything is stored."
+"I paste a test email about a duplicate charge. Claude reads it, calls it a card dispute at 95 percent confidence, picks Chase Bank as the counterparty, and pulls out the amount, merchant, date, and order number. Each field points to the line of the email it came from, and the code, not the model, works out the deadline to file. Card numbers are masked before anything is stored."
 
 **1:00 to 1:25. The approval gate** [Approve before action card]
 "Before anything goes out, the agent stops and shows me exactly what Fo will do: who it emails, what it says, and that it spends zero dollars. Nothing is sent until I press Approve." [press Approve]
@@ -35,7 +35,7 @@ Spoken length: about 280 words at a calm pace.
 | Beat | Rubric line | Backed by |
 |---|---|---|
 | Problem | Real need (10) | The everyday pain of disputes and claims |
-| Intake and classification | Agent craft (20) | Live Claude run: card dispute at 95%, Chase Bank, evidence fields (fo builder, a14d1f4) |
+| Intake and classification | Agent craft (20) | Live Claude run: card dispute at 95%, Chase Bank, evidence fields (fo builder, a14d1f4); line citations on 7 of 8 fields and a code-computed filing deadline (fo builder, 76039ad, STREAMFLIX run) |
 | Approval gate | Trust by design (20) | Approve card, `Trust.authorize`, $0 spend shown; double approve gets 409 (fo trust qa, 9 of 9 API tests) |
 | Escalation and audit | Trust by design (20) | Vague claim at 0.10 escalated; injection flagged and escalated; `chain_ok: true` |
 | Fo send | Gets real things done (25) | Simulated tonight; real once the key is in |
