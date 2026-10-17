@@ -24,7 +24,7 @@ Spoken length: about 280 words at a calm pace.
 [timeline runs to Resolved] "The reply comes back, the case closes as resolved, and every step is on the timeline."
 
 **1:25 to 1:45. When it should not act** [escalated case, then Audit log]
-"If a claim is too vague, the agent doesn't act. It hands the case to a human. If a forwarded email hides an extra recipient, the case goes to a human and that text never reaches Fo. And approving twice still sends exactly one email. Every step lands in an audit log where each entry is chained to the one before, so a changed record shows."
+"If a claim is too vague, the agent doesn't act. It hands the case to a human. The same happens if a forwarded email hides an extra recipient, so that address never reaches Fo. And approving twice still sends exactly one email. Every step lands in an audit log where each entry is chained to the one before, so a changed record shows."
 
 **1:45 to 2:00. Next by Monday** [face cam]
 "Fo already chases lost packages. We're adding the case file, the evidence, and the guardrails. By Monday: real Fo emails to our test inbox, and follow-ups that keep going until the case is closed. Thanks."
