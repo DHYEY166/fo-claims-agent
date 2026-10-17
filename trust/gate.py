@@ -1,5 +1,5 @@
 """Approval gate + hash-chained audit log (spec: docs/TRUST_SPEC.md)."""
-import hashlib, json, sqlite3, time, uuid
+import hashlib, re, json, sqlite3, time, uuid
 from .redact import redact
 
 APPROVAL_TTL_S = 900
@@ -8,6 +8,11 @@ APPROVAL_TTL_S = 900
 class ApprovalRequired(Exception): ...
 class ApprovalConflict(Exception): ...
 class TargetNotAllowed(Exception): ...
+
+
+# Demo decision (Dhyey, Oct 17): email only. Phone targets and call actions are refused even if allowlisted.
+_EMAIL = re.compile(r"[^@\s:]+@[^@\s]+\.[A-Za-z]{2,}")
+CALL_ACTIONS = {"call", "phone_call", "start_fo_call"}
 class SpendLimitExceeded(Exception): ...
 
 
@@ -18,7 +23,8 @@ def action_hash(case_id, action_type, target, prompt_text, amount_cents=0) -> st
 
 
 class Trust:
-    def __init__(self, db=":memory:", allowed_targets=(), max_spend_cents=0, clock=time.time):
+    def __init__(self, db=":memory:", allowed_targets=(), max_spend_cents=0, clock=time.time, email_only=True):
+        self.email_only = email_only
         self.db = sqlite3.connect(db)
         self.allowed = set(allowed_targets)
         self.max_spend = max_spend_cents
@@ -74,6 +80,9 @@ class Trust:
 
     def authorize(self, approval_id, case_id, action_type, target, prompt_text, amount_cents=0):
         """Call immediately before ask_fo. Raises unless a matching, unused, approved row exists."""
+        if self.email_only and (action_type in CALL_ACTIONS or not _EMAIL.fullmatch(target.removeprefix("mock:"))):
+            self.log(case_id, "system", "blocked", dict(reason="email_only", action_type=action_type, target=target))
+            raise TargetNotAllowed(target)
         if target not in self.allowed:
             self.log(case_id, "system", "blocked", dict(reason="target_not_allowed", target=target))
             raise TargetNotAllowed(target)

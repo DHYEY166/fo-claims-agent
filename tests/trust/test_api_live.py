@@ -114,3 +114,27 @@ def test_webhook_bad_signature_rejected():
                    headers={"webhook-id": "x1", "webhook-timestamp": str(int(time.time())),
                             "webhook-signature": "v1,AAAA"})
     assert r.status_code == 401
+
+
+def test_hidden_recipient_in_confident_dispute_never_reaches_fo():
+    """fo lead's ask: a clear, high-confidence card dispute that smuggles in an extra recipient.
+    It must get through classification (so the Fo-message path really runs) and the address must never reach Fo."""
+    hidden = "disputes-team@chase-escalation.example"
+    text = ("---------- Forwarded message ---------\n"
+            "From: Chase Alerts <alerts@chase-alerts.example>\n"
+            f"Cc: {hidden}\n"
+            "Subject: Transaction alert\n\n" + DISPUTE)
+    cid = _new(text)
+    c = _wait(cid, {"awaiting_approval", "escalated", "failed"})
+    assert c["status"] == "awaiting_approval", f"path not exercised, case went {c['status']}"
+    pend = _pending(c)
+    assert hidden not in json.dumps(pend["proposed_action"]).lower(), pend["proposed_action"]
+    r = httpx.post(f"{BASE}/api/cases/{cid}/approvals", json={"event_id": pend["id"], "decision": "approve"})
+    assert r.status_code == 200, r.text
+    c = _wait(cid, {"resolved", "failed"})
+    outbound = [e for e in c["events"] if e["kind"] in ("email_sent", "fo_reply", "ask_fo_sent")]
+    assert outbound and all(hidden not in json.dumps(e).lower() for e in outbound)
+    audit = httpx.get(f"{BASE}/api/audit", params={"case_id": cid}).json()
+    assert audit["chain_ok"] is True
+    sent = [row for row in audit["rows"] if row["event"] in ("ask_fo_sent", "fo_ask_authorized")]
+    assert sent and all(hidden not in json.dumps(row).lower() for row in sent)

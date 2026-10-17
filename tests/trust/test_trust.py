@@ -189,3 +189,19 @@ def test_awaiting_user():
 def test_redact_keeps_surrounding_spacing():
     out = redact("card 4111 1111 1111 1111 for $15.99")
     assert out == "card [CARD ****1111] for $15.99"
+
+
+@pytest.mark.parametrize("target,action", [
+    ("+15551234567", "email"),
+    ("tel:+15551234567", "email"),
+    ("(555) 123-4567", "email"),
+    ("test-bank@example.com", "start_fo_call"),
+    ("test-bank@example.com", "call"),
+])
+def test_phone_target_or_call_refused_even_if_allowlisted(target, action):
+    t = Trust(allowed_targets={target}, max_spend_cents=0)
+    aid = t.request_approval("c1", action, target, "hi", 0)
+    t.decide(aid, "approve")
+    with pytest.raises(TargetNotAllowed):
+        t.authorize(aid, "c1", action, target, "hi", 0)
+    assert [r for r in t.db.execute("SELECT event, detail FROM audit_log") if r[0] == "blocked"]
