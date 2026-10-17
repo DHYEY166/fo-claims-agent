@@ -184,3 +184,8 @@ def test_failed_turn_is_reported(status):
 
 def test_awaiting_user():
     assert poll_fo_reply(lambda: {"status": "completed", "awaitingUser": True}, clock=_fake_clock(1))[0] == "needs_user_input"
+
+
+def test_redact_keeps_surrounding_spacing():
+    out = redact("card 4111 1111 1111 1111 for $15.99")
+    assert out == "card [CARD ****1111] for $15.99"

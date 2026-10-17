@@ -1,6 +1,6 @@
 import re
 
-_PAN = re.compile(r"\b(?:\d[ -]?){13,19}\b")
+_PAN = re.compile(r"\b\d(?:[ -]?\d){12,18}\b")
 _SSN = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")
 _KEYS = re.compile(r"\b(wak_[A-Za-z0-9_\-]{6,}|sk-ant-[A-Za-z0-9_\-]{6,}|whsec_[A-Za-z0-9+/=]{6,})")
 
