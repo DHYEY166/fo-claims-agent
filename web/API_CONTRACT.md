@@ -65,6 +65,7 @@ type Event = {
   title: string;
   detail?: string | null;
   actor: 'agent' | 'fo' | 'human' | 'counterparty';
+  reason?: string | string[];     // optional, escalated_to_human: why the agent stopped (UI also parses "Title: reason")
   proposed_action?: string | ProposedAction; // approval_requested. Mock: plain string, e.g. "Call Chase disputes line, request provisional
                                   // credit of $184.20". Real backend: structured object (below). UI renders both.
   evidence?: Record<string, EvidenceValue>; // evidence_gathered: plain values or per-field objects (below)
@@ -81,7 +82,7 @@ type Event = {
 type ProposedAction = {
   channel: 'email' | 'call' | 'card' | string;
   to?: string | null;             // e.g. "mock:test-target@example.com"
-  acting_as?: string | null;      // e.g. "Chase Bank"
+  acting_as?: string | null;      // e.g. "Chase"
   message?: string | null;        // exact instruction Fo will receive
   spend_cents?: number | null;
   approval_id?: string;

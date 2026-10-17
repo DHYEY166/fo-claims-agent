@@ -60,6 +60,7 @@ export default function CaseDetail({ params }: { params: Promise<{ id: string }>
   const visible = DEMO_HIDE_CALLS ? data.events.filter((e) => !isCallEvent(e)) : data.events;
   const pending = data.events.filter((e) => e.kind === "approval_requested" && e.pending);
   const escalation = [...data.events].reverse().find((e) => e.kind === "escalated_to_human");
+  const escReasons = escalation ? escalationReasons(escalation) : [];
   const working = ["new", "classified", "gathering_evidence", "contacting"].includes(data.status);
 
   return (
@@ -94,6 +95,9 @@ export default function CaseDetail({ params }: { params: Promise<{ id: string }>
                 <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
                 <div className="min-w-0">
                   <div className="text-sm font-semibold text-amber-900">{escalation.title}</div>
+                  {escReasons.length > 0 && (
+                    <p className="mt-1.5 text-sm text-amber-900"><span className="font-medium">Reason:</span> {escReasons.map(maskEmails).join("; ")}</p>
+                  )}
                   {escalation.detail && <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-amber-900/80">{maskEmails(escalation.detail)}</p>}
                   <p className="mt-2 text-xs font-medium text-amber-700">The agent stopped before contacting anyone and handed this to a human EA.</p>
                 </div>
@@ -144,6 +148,14 @@ export default function CaseDetail({ params }: { params: Promise<{ id: string }>
 /** Pretty-print raw ISO timestamps that backends embed in free-text details. */
 function prettyDetail(d: string) {
   return d.replace(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})/g, (m) => fmtTime(m));
+}
+
+/** Escalation reasons: explicit `reason` field if present, else the text after "...: " in the title. */
+function escalationReasons(e: CaseEvent): string[] {
+  if (Array.isArray(e.reason)) return e.reason.filter(Boolean).map(String);
+  if (typeof e.reason === "string" && e.reason.trim()) return [e.reason.trim()];
+  const i = e.title.indexOf(": ");
+  return i > 0 ? e.title.slice(i + 2).split(/;\s*/).filter(Boolean) : [];
 }
 
 function MockBadge() {

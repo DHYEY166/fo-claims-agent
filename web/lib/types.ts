@@ -40,6 +40,7 @@ export interface CaseEvent {
   transcript?: TranscriptTurn[];
   email?: EmailBody;
   fo_conversation_id?: string;
+  reason?: string | string[]; // escalated_to_human: why the agent stopped (optional; may also be in the title after ":")
   trace?: Trace;
   mock?: boolean;
 }
