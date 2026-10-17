@@ -12,7 +12,7 @@ Source: the organizer's latest schedule, shared by Dhyey through fo lead. Dhyey 
 Scoring is 50% judges and 50% community, so the push runs all week, not just Monday.
 
 ## Open question for the organizer
-Before Monday, ask in Discord #gsd-community what counts as a community vote: likes on the quote-repost only, or other engagement too. Also ask whether the old "likes count for 24 hours" rule still applies now that voting runs to Friday. If only the first 24 hours count, move the asks below up to Monday and Tuesday.
+Before Monday, ask in Discord #gsd-community what counts as a community vote: likes on the quote-repost only, or other engagement too. Also ask whether the old "likes count for 24 hours" rule still applies now that voting runs to Friday. Until we have an answer, most of the asks go out Monday and Tuesday (fo lead's call), and the Wednesday to Friday replies only keep the post visible.
 
 ## Plan
 **Mon Oct 19**
@@ -20,6 +20,8 @@ Before Monday, ask in Discord #gsd-community what counts as a community vote: li
 - **Right after:** post the thread as replies under the quote-repost. Each reply covers one real thing: the approval gate, the email Fo sent, the audit log, and the repo link.
 - **About 1:45 PM ET / 10:45 AM PT:** the LinkedIn post goes up and links the X post.
 - **Afternoon and evening:** Dhyey sends short personal asks to people he knows (friends, classmates, coworkers). The ask is to like and repost the X post. I'll draft one short message he can adapt for each person.
+
+**Tue Oct 20:** Dhyey sends the second and last round of personal asks, to anyone he didn't reach on Monday. After Tuesday, no new asks to people; the posts just stay active.
 
 **Tue Oct 20 to Thu Oct 22: one new reply a day under the quote-repost**, so the original post keeps resurfacing. Each one uses only things we built and ran:
 - **Tue:** a short clip of the approve-before-action card and the 3-a-day send cap.
