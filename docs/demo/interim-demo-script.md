@@ -1,6 +1,6 @@
 # Interim demo script (2:00), Sat Oct 17, 5 PM PT / 8 PM ET
 
-Version 3, email only, rewritten at 4:05 PM ET around the team's real runs. Shown on the dashboard in live mode (`./scripts/restart.sh http://localhost:8000`).
+Version 3, email only, rewritten at 4:05 PM ET around the team's real runs. Shown on the dashboard that's already running on `:3100` in live mode against `:8000`. Don't run `restart.sh` or restart anything after 7:15 PM ET / 4:15 PM PT, just open the page.
 What's real: Claude classification, the approval gate, `Trust.authorize`, double-approve blocking, low-confidence and injection escalation, redaction at intake, and the hash-chained audit log.
 What's mocked: the Fo send itself, because WAJO_API_KEY isn't set yet. The case header carries a SIMULATED badge, and the narrator says so out loud.
 If the key lands and fo builder posts a real Fo turn on the test inbox, swap the line marked SWAP IF REAL.
