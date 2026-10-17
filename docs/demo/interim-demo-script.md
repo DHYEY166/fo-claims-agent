@@ -1,6 +1,6 @@
 # Interim demo script (2:00), Sat Oct 17, 5 PM PT / 8 PM ET
 
-Version 2, rewritten at 4:05 PM ET around the team's real runs. Shown on the dashboard in live mode (`./scripts/restart.sh http://localhost:8000`).
+Version 3, email only, rewritten at 4:05 PM ET around the team's real runs. Shown on the dashboard in live mode (`./scripts/restart.sh http://localhost:8000`).
 What's real: Claude classification, the approval gate, `Trust.authorize`, double-approve blocking, low-confidence and injection escalation, redaction at intake, and the hash-chained audit log.
 What's mocked: the Fo send itself, because WAJO_API_KEY isn't set yet. The case header carries a SIMULATED badge, and the narrator says so out loud.
 If the key lands and fo builder posts a real Fo turn on the test inbox, swap the line marked SWAP IF REAL.
@@ -20,13 +20,14 @@ Spoken length: about 280 words at a calm pace.
 
 **1:00 to 1:25. The approval gate** [Approve before action card]
 "Before anything goes out, the agent stops and shows me exactly what Fo will do: who it emails, what it says, and that it spends zero dollars. Nothing is sent until I press Approve." [press Approve]
-"Fo takes it from here. Tonight the send is simulated because we're still connecting our Fo key, and that's what the badge up here means." SWAP IF REAL: "Fo just emailed our test inbox, and here's its reply."
+"Fo takes it from here. Tonight the send is simulated because we're still connecting our Fo key, and that's what the badge up here means." SWAP IF REAL: "Fo just emailed our stand-in bank, a test inbox we own, and here's its reply."
+[timeline runs to Resolved] "The reply comes back, the case closes as resolved, and every step is on the timeline."
 
 **1:25 to 1:45. When it should not act** [escalated case, then Audit log]
 "If a claim is too vague, or a forwarded email tries to slip in its own instructions, the agent doesn't act. It hands the case to a human. Every step lands in an audit log where each entry is chained to the one before, so a changed record shows."
 
 **1:45 to 2:00. Next by Monday** [face cam]
-"Fo already chases lost packages. We're adding the case file, the evidence, and the guardrails. By Monday: real Fo emails and calls on test targets, and follow-ups that keep going until the case is closed. Thanks."
+"Fo already chases lost packages. We're adding the case file, the evidence, and the guardrails. By Monday: real Fo emails to our test inbox, and follow-ups that keep going until the case is closed. Thanks."
 
 ---
 
@@ -41,6 +42,7 @@ Spoken length: about 280 words at a calm pace.
 | Follow-ups until resolved | Pushes the frontier (25) | Planned for Monday; say "next", not "done" |
 
 ## Don't say tonight
-- That Fo sent a real email or made a call (not until a real run is posted).
+- Anything about phone calls. The demo is email only, by Dhyey's decision.
+- That Fo sent a real email (not until a real run is posted).
 - That injected text is stripped from Fo's prompt. The escalation is tested, but the case never reached the prompt in fo trust qa's run.
 - Any user numbers or recovery amounts.
