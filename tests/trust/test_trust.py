@@ -170,8 +170,9 @@ def test_stuck_working_becomes_fo_stalled():
     assert state == "fo_stalled" and last["status"] == "working"
 
 
-def test_working_then_completed():
-    replies = iter([{"status": "working"}, {"status": "working"}, {"status": "completed", "text": "sent"}])
+@pytest.mark.parametrize("done", ["complete", "completed"])
+def test_working_then_completed(done):
+    replies = iter([{"status": "working"}, {"status": "working"}, {"status": done, "text": "sent"}])
     state, last = poll_fo_reply(lambda: next(replies), clock=_fake_clock(40))
     assert state == "waiting_on_reply"
 

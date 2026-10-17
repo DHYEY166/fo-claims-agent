@@ -11,7 +11,8 @@ def poll_fo_reply(get_reply, timeout_s=600, clock=time.monotonic):
         status = last.get("status")
         if status == "working":
             continue
-        if status == "completed":
+        # /fo get_fo_reply returns "complete"; webhook conversation.reply uses "completed".
+        if status in ("complete", "completed"):
             return ("needs_user_input" if last.get("awaitingUser") else "waiting_on_reply", last)
         return ("fo_failed", last)
     return ("fo_stalled", last)
