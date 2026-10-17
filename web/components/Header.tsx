@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Plus } from "lucide-react";
-import { IS_MOCK } from "@/lib/api";
+import { API_BASE, IS_MOCK } from "@/lib/api";
 import { cx } from "./ui";
 
 export function Header() {
@@ -29,6 +29,11 @@ export function Header() {
           {IS_MOCK && (
             <span title="Data is served by the in-app mock layer. Set NEXT_PUBLIC_API_BASE to use the real backend."
               className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1 font-mono text-[11px] font-semibold tracking-wider text-amber-800">MOCK DATA</span>
+          )}
+          {!IS_MOCK && (
+            <span title="Connected to the real backend" className="inline-flex items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-2 py-1 font-mono text-[11px] text-zinc-600">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />API {API_BASE.replace(/^https?:\/\//, "")}
+            </span>
           )}
           <Link href="/new" className={cx("inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium shadow-sm transition",
             path === "/new" ? "bg-accent-700 text-white" : "bg-accent-600 text-white hover:bg-accent-700")}>

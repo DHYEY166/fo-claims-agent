@@ -13,8 +13,10 @@ All bodies are JSON. Timestamps are ISO 8601 (UTC). Money is integer cents.
 | POST | `/api/cases` | `{ source: 'paste'\|'upload'\|'forward', text: string, filenames?: string[] }` | `Case` |
 | POST | `/api/cases/:id/approvals` | `{ event_id: string, decision: 'approve'\|'reject', note?: string }` | `Event` (the resulting `approved`/`rejected` event) |
 | GET | `/api/stream` | – | Server-Sent Events (see below) |
+| GET | `/api/audit` | – | `{ chain_ok: boolean, rows: AuditRow[] }` (hash-chained, append-only) |
 
-Errors: non-2xx with `{ "error": string }` (400 invalid body, 404 unknown case/event, 409 approval already decided).
+Errors: non-2xx with `{ "error": string }` (mock) or `{ "detail": string }` (real backend, FastAPI style); the frontend reads either.
+400 invalid body, 404 unknown case/event, **409 approval already decided** (UI shows "Already decided" and refreshes).
 
 ### SSE: `GET /api/stream`
 
@@ -39,15 +41,18 @@ type Case = {
   id: string;
   type: 'card_dispute' | 'insurance_claim' | 'package_claim';
   title: string;
-  counterparty: string;
-  amount_cents: number;
+  counterparty: string | null;    // real backend sends null until classified
+  amount_cents: number | null;    // ditto
   currency: string;               // ISO 4217, e.g. "USD"
   status: 'new' | 'classified' | 'gathering_evidence' | 'awaiting_approval' | 'contacting'
-        | 'awaiting_reply' | 'follow_up_scheduled' | 'resolved' | 'rejected' | 'failed';
+        | 'awaiting_reply' | 'follow_up_scheduled' | 'resolved' | 'rejected' | 'failed'
+        | 'escalated';            // escalated to a human EA, nothing sent (e.g. possible prompt injection)
+                                  // unknown statuses render as a neutral pill
   created_at: string;             // ISO
   updated_at: string;             // ISO
-  confidence?: number;            // 0..1 classification confidence. UI: "confidence 92%" chip; warning style below 0.7
+  confidence?: number | null;     // 0..1 classification confidence. UI: "confidence 92%" chip; warning style below 0.7
   mock?: boolean;                 // true => simulated case. UI: "simulated" badge
+  // real backend also sends (ignored by UI): fo_conversation_id?: string|null, follow_up_at?: string|null
 };
 
 type Event = {
@@ -58,14 +63,37 @@ type Event = {
       | 'call_placed' | 'email_sent' | 'reply_received' | 'follow_up_scheduled' | 'resolved'
       | 'escalated_to_human' | 'note';
   title: string;
-  detail?: string;
+  detail?: string | null;
   actor: 'agent' | 'fo' | 'human' | 'counterparty';
-  proposed_action?: string;       // for approval_requested, e.g. "Call Chase disputes line, request provisional credit of $184.20"
+  proposed_action?: string | ProposedAction; // approval_requested. Mock: plain string, e.g. "Call Chase disputes line, request provisional
+                                  // credit of $184.20". Real backend: structured object (below). UI renders both.
+  evidence?: Record<string, unknown>; // evidence_gathered (real backend): extracted fields, shown as a key/value grid
   pending?: boolean;              // approval_requested awaiting a decision => UI shows "Approve before action" card
   transcript?: { speaker: string; text: string; ts?: string }[];   // call_placed
   email?: { from: string; to: string; subject: string; body: string }; // email_sent / reply_received
   fo_conversation_id?: string;    // Fo events. UI: muted monospace line
   mock?: boolean;
+};
+```
+
+```ts
+type ProposedAction = {
+  channel: 'email' | 'call' | 'card' | string;
+  to?: string | null;             // e.g. "mock:test-target@example.com"
+  acting_as?: string | null;      // e.g. "Chase Bank"
+  message?: string | null;        // exact instruction Fo will receive
+  spend_cents?: number | null;
+  approval_id?: string;
+};
+
+type AuditRow = {
+  id: number;                     // sequential
+  ts: number;                     // epoch seconds (float)
+  case_id: string;
+  actor: 'agent' | 'user' | 'system' | 'fo' | 'human' | string;
+  event: 'intake' | 'approval_requested' | 'approval_decided' | 'fo_ask_authorized' | 'ask_fo_sent' | string;
+  detail: string | null;          // JSON-encoded object, e.g. "{\"decision\": \"approved\"}"
+  row_hash: string;               // sha256 hex, chained over the previous row
 };
 ```
 

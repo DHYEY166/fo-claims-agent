@@ -6,6 +6,11 @@ const OUT = new URL("../screenshots/", import.meta.url).pathname;
 mkdirSync(OUT, { recursive: true });
 const executablePath = process.env.CHROME_PATH || "/usr/bin/google-chrome";
 const browser = await chromium.launch({ executablePath, args: ["--no-sandbox"] });
+async function tallShot(path) {
+  const h = await page.evaluate(() => document.documentElement.scrollHeight);
+  await page.setViewportSize({ width: 1280, height: h }); await page.waitForTimeout(300);
+  await page.screenshot({ path }); await page.setViewportSize({ width: 1280, height: 800 });
+}
 const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 });
 const settle = () => page.waitForTimeout(1200);
 
@@ -14,7 +19,7 @@ await page.screenshot({ path: OUT + "a-case-list.png" });
 
 await page.goto(`${BASE}/cases/case_ups`, { waitUntil: "networkidle" }); await page.waitForSelector("[data-kind='call_placed']");
 await page.click("[data-kind='call_placed'] [data-expand]"); await settle();
-await page.screenshot({ path: OUT + "b-case-detail-transcript-full.png", fullPage: true });
+await tallShot(OUT + "b-case-detail-transcript-full.png");
 await page.evaluate(() => { const el = document.querySelector("[data-kind='call_placed']"); window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 150); });
 await settle();
 await page.screenshot({ path: OUT + "b-case-detail-transcript.png" });
@@ -36,7 +41,7 @@ if (!process.env.SKIP_LIVE) {
   await page.screenshot({ path: OUT + "e-new-case-awaiting-approval.png" });
   await page.click("button:has-text('Approve')");
   await page.waitForSelector("[data-kind='email_sent']", { timeout: 20000 }); await settle();
-  await page.screenshot({ path: OUT + "f-after-approval-live.png", fullPage: true });
+  await tallShot(OUT + "f-after-approval-live.png");
 }
 // h: prompt-injection escalation
 if (!process.env.SKIP_LIVE) {
@@ -49,4 +54,5 @@ if (!process.env.SKIP_LIVE) {
   await page.screenshot({ path: OUT + "a2-case-list-after-demo.png" });
 }
 await browser.close();
+
 console.log("saved to", OUT);

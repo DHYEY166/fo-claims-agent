@@ -137,6 +137,11 @@ export default function CaseDetail({ params }: { params: Promise<{ id: string }>
   );
 }
 
+/** Pretty-print raw ISO timestamps that backends embed in free-text details. */
+function prettyDetail(d: string) {
+  return d.replace(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})/g, (m) => fmtTime(m));
+}
+
 function Row({ k, children }: { k: string; children: React.ReactNode }) {
   return <div className="flex items-center justify-between gap-3"><dt className="text-zinc-500">{k}</dt><dd className="truncate text-right text-zinc-900">{children}</dd></div>;
 }
@@ -218,7 +223,7 @@ function TimelineItem({ e, last, fresh, now }: { e: CaseEvent; last: boolean; fr
           {e.actor === "fo" ? <Bot className="h-3 w-3" /> : null}{ACTOR[e.actor] ?? e.actor}
         </div>
         {e.pending ? <p className="mt-1.5 text-sm text-amber-700">Waiting for your decision — see the approval card above.</p>
-          : e.detail && !(e.evidence && Object.keys(e.evidence).length) && <p className={cx("mt-1.5 whitespace-pre-wrap text-sm leading-relaxed", e.kind === "escalated_to_human" ? "rounded-md bg-amber-50 px-3 py-2 text-amber-900" : "text-zinc-600")}>{e.detail}</p>}
+          : e.detail && !(e.evidence && Object.keys(e.evidence).length) && <p className={cx("mt-1.5 whitespace-pre-wrap text-sm leading-relaxed", e.kind === "escalated_to_human" ? "rounded-md bg-amber-50 px-3 py-2 text-amber-900" : "text-zinc-600")}>{prettyDetail(e.detail)}</p>}
         {e.evidence && typeof e.evidence === "object" && Object.keys(e.evidence).length > 0 && (
           <dl className="mt-2 grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-1 rounded-lg border border-zinc-200 bg-zinc-50/70 px-3 py-2 text-xs">
             {Object.entries(e.evidence).map(([k2, v]) => (
