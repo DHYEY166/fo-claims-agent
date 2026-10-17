@@ -1,49 +1,46 @@
-# Interim demo script (2:00) - Sat Oct 17, 5 PM PT / 8 PM ET
+# Interim demo script (2:00), Sat Oct 17, 5 PM PT / 8 PM ET
 
-Spoken length: about 280 words, roughly 2:00 at a calm pace. Brackets are stage directions.
-Lines marked FILL IN must be swapped for what the team actually ran by 5 PM PT. If a step hasn't run, cut it and say "next" instead.
+Version 2, rewritten at 4:05 PM ET around the team's real runs. Shown on the dashboard in live mode (`./scripts/restart.sh http://localhost:8000`).
+What's real: Claude classification, the approval gate, `Trust.authorize`, double-approve blocking, low-confidence and injection escalation, redaction at intake, and the hash-chained audit log.
+What's mocked: the Fo send itself, because WAJO_API_KEY isn't set yet. The case header carries a SIMULATED badge, and the narrator says so out loud.
+If the key lands and fo builder posts a real Fo turn on the test inbox, swap the line marked SWAP IF REAL.
 
----
-
-**0:00 to 0:15. The problem** [face cam or title slide]
-"You got charged twice. Your package never showed. Your insurer wants a form, a receipt, and three follow-up calls. Most people give up and eat the money. We're building the agent that doesn't give up."
-
-**0:15 to 0:35. What it is** [one slide with the one-liner]
-"It's a Fo agent that files card disputes and insurance or package claims for you and follows up until they're resolved. You describe what went wrong once. It turns that into a case with the evidence attached, files it by email or phone through Fo, and keeps chasing on a schedule until there's an answer."
-
-**0:35 to 1:20. The live case flow** [screen share of the dashboard: submit, case list, timeline]
-Test data only. Say "mock" out loud for any step still on mock data.
-1. "Here's a test card-dispute email. I paste it in." [submit screen]
-2. "Claude classifies it as a card dispute and pulls out the merchant, amount, and date." [timeline: classified, evidence ready. FILL IN the real fields shown]
-3. "The case shows up in the list with its status, and the timeline shows every step." [case list, then timeline]
-
-**1:20 to 1:40. The approval gate** [timeline: awaiting approval card]
-"Before Fo contacts anyone, the agent stops and shows me exactly what it will send and to whom. Nothing goes out until I press Approve." [press Approve]
-"Then Fo takes over." [timeline fills in: call transcript and email, reply, follow-up scheduled, resolved]
-If these steps are still on mock data, say it plainly: "From here the dashboard is on mock data. Tonight we're wiring it to real Fo turns on a test inbox." Swap that line for the real run (FILL IN) once fo builder has one.
-Trust controls beyond the gate stay FILL IN until fo trust qa confirms them.
-
-**1:40 to 2:00. Next by Monday** [back to face cam]
-"Fo already chases lost packages. We're adding one case file per problem, evidence that travels with it, and follow-ups that keep going until it's resolved. By Monday: [FILL IN from fo lead's plan, e.g. scheduled follow-ups and insurance and package claims]. Thanks!"
+Spoken length: about 280 words at a calm pace.
 
 ---
 
-## Rubric map (what each beat earns)
-| Beat | Rubric line | Claim it supports |
+**0:00 to 0:15. The problem** [face cam]
+"You got charged twice. Your package showed up crushed. Getting that money back means forms, receipts, and chasing someone for weeks. Most people give up. We built an agent that doesn't."
+
+**0:15 to 0:30. What it is** [case list screen]
+"It's a Fo agent that files card disputes and insurance or package claims for you and follows up until they're resolved. Every problem becomes a case with its evidence and a full history."
+
+**0:30 to 1:00. Intake and classification** [New claim, paste a test duplicate-charge email, open the case]
+"I paste a test email about a duplicate charge. Claude reads it, calls it a card dispute at 95 percent confidence, picks Chase Bank as the counterparty, and pulls out the amount, merchant, date, and order number. Card numbers are redacted the moment they come in."
+
+**1:00 to 1:25. The approval gate** [Approve before action card]
+"Before anything goes out, the agent stops and shows me exactly what Fo will do: who it emails, what it says, and that it spends zero dollars. Nothing is sent until I press Approve." [press Approve]
+"Fo takes it from here. Tonight the send is simulated because we're still connecting our Fo key, and that's what the badge up here means." SWAP IF REAL: "Fo just emailed our test inbox, and here's its reply."
+
+**1:25 to 1:45. When it should not act** [escalated case, then Audit log]
+"If a claim is too vague, or a forwarded email tries to slip in its own instructions, the agent doesn't act. It hands the case to a human. Every step lands in an audit log where each entry is chained to the one before, so a changed record shows."
+
+**1:45 to 2:00. Next by Monday** [face cam]
+"Fo already chases lost packages. We're adding the case file, the evidence, and the guardrails. By Monday: real Fo emails and calls on test targets, and follow-ups that keep going until the case is closed. Thanks."
+
+---
+
+## Rubric map
+| Beat | Rubric line | Backed by |
 |---|---|---|
-| Problem | Real need (10) | People drop disputes and claims because the follow-up is tedious |
-| What runs today | Gets real things done (25) | A real Fo email or call on test data, shown end to end |
-| Case record and webhook status | Agent craft (20) | Structured case, evidence, state that updates on Fo replies |
-| Trust by design | Trust by design (20) | Approval before send, logged actions, test data only |
-| Follow-ups until resolved | Pushes the frontier (25) | Multi-step work that runs over days, not one reply |
+| Problem | Real need (10) | The everyday pain of disputes and claims |
+| Intake and classification | Agent craft (20) | Live Claude run: card dispute at 95%, Chase Bank, evidence fields (fo builder, a14d1f4) |
+| Approval gate | Trust by design (20) | Approve card, `Trust.authorize`, $0 spend shown; double approve gets 409 (fo trust qa, 9 of 9 API tests) |
+| Escalation and audit | Trust by design (20) | Vague claim at 0.10 escalated; injection flagged and escalated; `chain_ok: true` |
+| Fo send | Gets real things done (25) | Simulated tonight; real once the key is in |
+| Follow-ups until resolved | Pushes the frontier (25) | Planned for Monday; say "next", not "done" |
 
-## Facts I relied on (from the Fo docs notes, not from our build)
-- Fo's own tool description says it "can read and send their email, manage their calendar, place calls, make purchases".
-- Fo webhooks send a `conversation.reply` event when a conversation gets a reply, and a `schedule.fired` event exists.
-- Wajo posted on Sep 18 that Fo already recovers lost packages, so the demo leans on case tracking and multi-domain claims to stand out.
-
-## What I need from the team before 5 PM PT
-1. fo builder: did a real Fo email or call go out on test data? Which one, and can I get a screen recording or screenshot?
-2. fo builder: is the webhook wired so a reply updates case status?
-3. fo trust qa: the exact trust controls that are actually built (approval step, logging, data rules).
-4. fo frontend: what screen we're showing (case view, input box).
+## Don't say tonight
+- That Fo sent a real email or made a call (not until a real run is posted).
+- That injected text is stripped from Fo's prompt. The escalation is tested, but the case never reached the prompt in fo trust qa's run.
+- Any user numbers or recovery amounts.
