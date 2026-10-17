@@ -40,7 +40,20 @@ export interface CaseEvent {
   transcript?: TranscriptTurn[];
   email?: EmailBody;
   fo_conversation_id?: string;
+  trace?: Trace;
   mock?: boolean;
+}
+
+/** Optional per-step trace record (one per event). UI renders nothing if absent. */
+export interface Trace {
+  agent: string;
+  input_source: string;
+  duration_ms: number;
+  tokens?: { input: number; output: number };
+  errors?: string[];
+  retries?: number;
+  model?: string;
+  prompt_id?: string;
 }
 
 export type CaseWithEvents = Case & { events: CaseEvent[] };

@@ -7,6 +7,8 @@ import {
 } from "lucide-react";
 import { ApiError, api } from "@/lib/api";
 import { useLive } from "@/lib/useLive";
+import { TraceRow } from "@/components/TraceRow";
+import { EvidenceGrid } from "@/components/Evidence";
 import { DEMO_HIDE_CALLS, isCallEvent, maskAddress, maskEmails } from "@/lib/demo";
 import type { CaseEvent, CaseWithEvents } from "@/lib/types";
 import { ConfidenceChip, LiveDot, SimBadge, StatusPill, TypeIcon, cx, describeAction, fmtTime, money, relTime, typeLabel, useNow } from "@/components/ui";
@@ -239,14 +241,9 @@ function TimelineItem({ e, last, fresh, now }: { e: CaseEvent; last: boolean; fr
         </div>
         {e.pending ? <p className="mt-1.5 text-sm text-amber-700">Waiting for your decision — see the approval card above.</p>
           : e.detail && !(e.evidence && Object.keys(e.evidence).length) && <p className={cx("mt-1.5 whitespace-pre-wrap text-sm leading-relaxed", e.kind === "escalated_to_human" ? "rounded-md bg-amber-50 px-3 py-2 text-amber-900" : "text-zinc-600")}>{maskEmails(prettyDetail(e.detail))}</p>}
-        {e.evidence && typeof e.evidence === "object" && Object.keys(e.evidence).length > 0 && (
-          <dl className="mt-2 grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-1 rounded-lg border border-zinc-200 bg-zinc-50/70 px-3 py-2 text-xs">
-            {Object.entries(e.evidence).map(([k2, v]) => (
-              <div key={k2} className="contents"><dt className="text-zinc-400">{k2.replace(/_/g, " ")}</dt><dd className="text-zinc-700">{typeof v === "string" ? v : JSON.stringify(v)}</dd></div>
-            ))}
-          </dl>
-        )}
+        <EvidenceGrid evidence={e.evidence} />
         {e.fo_conversation_id && <p className="mt-1 font-mono text-[11px] text-zinc-400">fo conversation · {e.fo_conversation_id}</p>}
+        <TraceRow trace={e.trace} />
         {expandable && (
           <button onClick={() => setOpen((o) => !o)} data-expand
             className="mt-2 inline-flex items-center gap-1 rounded-md border border-zinc-200 px-2 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50">

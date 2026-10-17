@@ -1,6 +1,6 @@
 // MOCK DATA LAYER — in-memory store + simulator. Email-only to test stand-in addresses; never places calls, sends real email or pays.
 import { createHash } from "node:crypto";
-import type { Case, CaseEvent, CaseWithEvents, CreateCaseBody, ApprovalBody, CaseType, AuditRow, AuditResponse, ProposedAction } from "./types";
+import type { Trace, Case, CaseEvent, CaseWithEvents, CreateCaseBody, ApprovalBody, CaseType, AuditRow, AuditResponse, ProposedAction } from "./types";
 
 type Listener = (msg: { event: "case_updated"; data: Case } | { event: "case_event"; data: CaseEvent }) => void;
 
@@ -65,9 +65,27 @@ function patchCase(id: string, patch: Partial<Case>) {
   const next = { ...c, ...patch, updated_at: iso() }; s.cases.set(id, next); emit({ event: "case_updated", data: next });
 }
 
+// ---------- per-step trace records (realistic shapes; values are simulated) ----------
+const MODEL = "claude-sonnet-4-5";
+function jitter(n: number) { return Math.round(n * (0.85 + Math.random() * 0.3)); }
+export function traceFor(kind: string, input_source?: string): Trace | undefined {
+  switch (kind) {
+    case "classified": return { agent: "classifier", input_source: input_source ?? "user:paste", duration_ms: jitter(1180), tokens: { input: jitter(812), output: jitter(96) }, model: MODEL, prompt_id: "prompts/classify.v1", retries: 0 };
+    case "evidence_gathered": return { agent: "extractor", input_source: "classifier", duration_ms: jitter(2340), tokens: { input: jitter(1460), output: jitter(310) }, model: MODEL, prompt_id: "prompts/extract_evidence.v2", retries: 0 };
+    case "approval_requested": return { agent: "planner", input_source: "extractor", duration_ms: jitter(640), tokens: { input: jitter(520), output: jitter(140) }, model: MODEL, prompt_id: "prompts/plan_action.v1", retries: 0 };
+    case "approved": case "rejected": return { agent: "approval_gate", input_source: "human", duration_ms: jitter(14) };
+    case "email_sent": return { agent: "fo_adapter", input_source: "approval_gate", duration_ms: jitter(830), retries: 0 };
+    case "reply_received": return { agent: "inbox_watcher", input_source: "fo", duration_ms: jitter(210) };
+    case "follow_up_scheduled": return { agent: "scheduler", input_source: "inbox_watcher", duration_ms: jitter(18) };
+    case "resolved": return { agent: "resolver", input_source: "inbox_watcher", duration_ms: jitter(920), tokens: { input: jitter(640), output: jitter(80) }, model: MODEL, prompt_id: "prompts/resolve_check.v1" };
+    case "escalated_to_human": return { agent: "guardrail", input_source: input_source ?? "user:paste", duration_ms: jitter(410), tokens: { input: jitter(700), output: jitter(60) }, model: MODEL, prompt_id: "prompts/injection_screen.v1" };
+    default: return undefined;
+  }
+}
+
 function addEvent(case_id: string, e: Omit<CaseEvent, "id" | "case_id" | "ts" | "mock">): CaseEvent {
   const s = store();
-  const ev: CaseEvent = { id: nid("evt"), case_id, ts: iso(), mock: true, ...e };
+  const ev: CaseEvent = { id: nid("evt"), case_id, ts: iso(), mock: true, trace: traceFor(e.kind), ...e };
   const list = s.events.get(case_id) ?? []; list.push(ev); s.events.set(case_id, list);
   emit({ event: "case_event", data: ev });
   return ev;
@@ -140,7 +158,7 @@ export function createCase(body: CreateCaseBody): Case {
   schedule([
     () => {
       patchCase(id, { ...info, status: "classified" });
-      addEvent(id, { kind: "classified", actor: "agent", title: `Classified as ${label}`, detail: `Counterparty: ${info.counterparty} · Amount: ${money(info.amount_cents)} · Source: ${body.source}` });
+      addEvent(id, { kind: "classified", actor: "agent", trace: traceFor("classified", `user:${body.source}`), title: `Classified as ${label}`, detail: `Counterparty: ${info.counterparty} · Amount: ${money(info.amount_cents)} · Source: ${body.source}` });
     },
     () => {
       if (info.type === "other") {
@@ -213,7 +231,7 @@ function runResolution(c: Case) {
 // ---------- seed ----------
 function seed(s: Store) {
   const put = (c: Case, evs: Omit<CaseEvent, "case_id" | "mock">[]) => {
-    s.cases.set(c.id, c); s.events.set(c.id, evs.map((e) => ({ ...e, case_id: c.id, mock: true })));
+    s.cases.set(c.id, c); s.events.set(c.id, evs.map((e) => ({ trace: traceFor(e.kind), ...e, case_id: c.id, mock: true })));
   };
   const now = Date.now(); const at = (ms: number) => new Date(now - ms).toISOString();
   const sec = (ms: number) => (now - ms) / 1000;
@@ -253,6 +271,8 @@ function seed(s: Store) {
     status: "awaiting_reply", created_at: at(2 * DAY), updated_at: at(3 * HOUR), confidence: 0.67, mock: true }, [
     { id: "evt_u1", ts: at(2 * DAY), kind: "classified", actor: "agent", title: "Classified as Package claim", detail: "Counterparty: UPS · Amount: $89.99 · Source: paste" },
     { id: "evt_u2", ts: at(2 * DAY - 20 * MIN), kind: "evidence_gathered", actor: "agent", title: "Extracted 5 evidence fields",
+      trace: { agent: "extractor", input_source: "classifier", duration_ms: 9420, tokens: { input: 1712, output: 344 }, model: MODEL, prompt_id: "prompts/extract_evidence.v2", retries: 1,
+        errors: ["tracking_lookup: carrier status page timed out after 8000ms (retried once, then used pasted tracking text)"] },
       evidence: {
         carrier: { value: "UPS", status: "present", citation: "Shipped with UPS — tracking 1Z999AA10123456784" },
         tracking_number: { value: "1Z999AA10123456784", status: "present", citation: "Tracking: 1Z999AA10123456784" },
