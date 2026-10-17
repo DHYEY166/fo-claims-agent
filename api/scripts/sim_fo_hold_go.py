@@ -13,8 +13,10 @@ class StubFo:
     replies: list = []
 
     def ask(self, message, conversation_id=None, new=False):
-        StubFo.calls.append({"message": message if message == "go" else "<dispute email>", "conversationId": conversation_id, "new": new})
-        return {"status": "complete", "conversationId": conversation_id or "sim-conv-1", "response": StubFo.replies.pop(0)}
+        shown = message if message == "go" else "<dispute email>"
+        StubFo.calls.append({"message": shown, "conversationId": conversation_id, "new": new})
+        conv = conversation_id or "sim-conv-1"
+        return {"status": "complete", "conversationId": conv, "response": StubFo.replies.pop(0)}
 
     def poll_with_retry(self, *a, **k):
         raise AssertionError("not needed")
@@ -42,7 +44,8 @@ def run(second_reply):
     c = db.get_case(cid)
     print("final status:", c["status"], "| follow_up_at set:", bool(c.get("follow_up_at")))
     print("ask_fo calls:", StubFo.calls)
-    print("more go buttons:", len([e for e in db.list_events(cid) if e["kind"] == "approval_requested" and e.get("pending")]))
+    pending = [e for e in db.list_events(cid) if e["kind"] == "approval_requested" and e.get("pending")]
+    print("more go buttons:", len(pending))
     print("steps:", [e["title"] for e in db.list_events(cid)])
     return cid
 
