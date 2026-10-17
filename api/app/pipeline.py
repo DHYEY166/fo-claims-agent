@@ -392,17 +392,19 @@ def _finish_fo_turn(case_id: str, action: dict, fo: Any, first: dict, conv: Opti
     schedule_follow_up(case_id)
 
 
-_HELD = re.compile(r"go-ahead|go ahead|say go|\bhold(ing)?\b|\bheld\b|waiting for your|before i send|"
-                   r"want me to send|shall i send|should i send|confirm (before|and i)|approve", re.I)
+_HELD = re.compile(r"go-ahead|go ahead|say go|\bheld\b|\bholding (it|the email|this)\b|waiting for your|"
+                   r"before i send|want me to send|shall i send|should i send|confirm (before|and i)", re.I)
 _SENT = re.compile(r"\b(i('ve| have)?|fo( has)?) (just )?sent\b|\b(email|message|it) (was|has been|is) sent\b|"
-                   r"\bsent (it|the email|the message|your email)\b|\bwent out\b", re.I)
+                   r"\bsent (it|the email|the message|your email)\b|\bwent out\b|^\W*sent\b|\bmessage id\b",
+                   re.I | re.M)
 
 
 def fo_send_outcome(text: str) -> str:
-    """Code decides from Fo's own words: 'held' beats 'sent'; anything else is 'unclear', never assumed sent."""
-    if _HELD.search(text or ""):
+    """Code decides from Fo's own words. Both or neither matching is 'unclear': escalate, no go-ahead button."""
+    held, sent = bool(_HELD.search(text or "")), bool(_SENT.search(text or ""))
+    if held and not sent:
         return "held"
-    if _SENT.search(text or ""):
+    if sent and not held:
         return "sent"
     return "unclear"
 
