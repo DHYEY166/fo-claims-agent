@@ -26,17 +26,20 @@ Spoken length: about 290 words at a calm pace.
 
 **0:55 to 1:25. Approve, Fo sends, reply** [Tab 1, Approve before action card]
 "Before anything goes out, the agent stops and shows me exactly what Fo will do: who it emails, what it says, and that it spends zero dollars. Nothing is sent until I press Approve, and real sends to the test inbox are capped at 3 a day in code." [press Approve once]
-"This is live. We're connected to real Fo through OAuth, and Fo is emailing our test bank inbox right now." [wait for the step titled "Fo replied" to appear on the timeline. The small green "Live" dot at top right only means the dashboard is connected; it is not the send]
-[point at the "Fo replied" step: green LIVE badge, "Fo reported" block, "sent to test bank inbox"] "Fo sent it. The bank's reply lands in the test inbox, and the agent keeps the case open until it's resolved."
+"This is live. We're connected to real Fo through OAuth, and Fo is writing the email to our test bank inbox now." [wait for Fo's step on the timeline, up to about 90 seconds; rehearsal took 62. The small green "Live" dot at top right only means the dashboard is connected; it is not the send]
+Read the Fo step, then say only the branch it shows:
+- **Fo sent** ("Fo replied" step, LIVE badge, "Fo reported" block confirms the send): "Fo sent it to our test bank inbox. The bank's reply lands in the test inbox, and the agent keeps the case open until it's resolved."
+- **Fo held** (case escalated with "Fo is holding the email for your go-ahead"): "Fo drafted it and is holding it until I say go. That's a second approval, on Fo's side." [point at the "Fo reported" block] Don't say go to Fo on stage, and don't mention follow-ups for this case.
+Never say "emailing right now" or "sent" until the timeline shows a confirmed send.
 Don't say the reply shows on the timeline. With no webhook tunnel tonight, it won't.
 
 **1:25 to 1:45. When it should not act** [Tab 2 for the escalated case, then Tab 1 Audit log]
-"If a claim is too vague, the agent doesn't act. It hands the case to a human. The same happens if a forwarded email hides an extra recipient, so that address never reaches Fo. And approving twice still sends exactly one email. Every step, including the email we just sent, lands in an audit log where each entry is chained to the one before, so a changed record shows."
+"If a claim is too vague, the agent doesn't act. It hands the case to a human. The same happens if a forwarded email hides an extra recipient, so that address never reaches Fo. And approving twice still sends exactly one email. Every step, including what Fo just did, lands in an audit log where each entry is chained to the one before, so a changed record shows."
 
 **1:45 to 2:00. Next by Monday** [face cam]
 "Fo already chases lost packages. We're adding the case file, the evidence, and the guardrails. By Monday: follow-ups that keep going until the case is closed. Thanks."
 
-**If the live step fails on stage** (no "Fo replied" step with a LIVE badge after about 30 seconds, or an error). A later "No webhook or reply arrived" escalation is not a failure, it's the honest state with no tunnel: don't press Approve again, because that spends a send. Switch to Tab 2 and open a case that's already resolved there. Say: "The live send didn't come through just now, so here's the same flow on our mock run, which is labeled MOCK. We did send one live email at rehearsal." Only say that last sentence if the 7:30 PM ET rehearsal send actually landed.
+**If the live step fails on stage** (no Fo step on the timeline after about 90 seconds, or an error; a held draft is not a failure, use the Fo held line). A later "No webhook or reply arrived" escalation is not a failure, it's the honest state with no tunnel: don't press Approve again, because that spends a send. Switch to Tab 2 and open a case that's already resolved there. Say: "The live send didn't come through just now, so here's the same flow on our mock run, which is labeled MOCK. We did send one live email at rehearsal." Only say that last sentence if fo trust qa confirms with get_fo_conversation that the rehearsal email (case_cbd0d1cf1a, after Dhyey said go) was sent.
 
 ---
 
