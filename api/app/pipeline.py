@@ -362,8 +362,37 @@ def _real_contact(case_id: str, action: dict, t0: float) -> None:
         return
     emit(case_id, "note", "Fo replied", "fo", detail=fo_text, fo_conversation_id=conv, trace=trace,
          proposed_email={"to": action.get("to"), "body": action["message"]})
+    outcome = fo_send_outcome(fo_text)
+    tb.call("log", case_id, "system", "fo_send_outcome", {"outcome": outcome, "conversationId": conv})
+    if outcome == "held":
+        emit(case_id, "escalated_to_human", "Fo is holding the email for your go-ahead", "fo",
+             detail="Fo drafted it but has not sent it. Nothing went out. No follow-up scheduled.",
+             fo_conversation_id=conv)
+        set_status(case_id, "escalated")
+        return
+    if outcome == "unclear":
+        emit(case_id, "escalated_to_human", "Couldn't confirm Fo sent the email", "agent",
+             detail="Fo's reply doesn't say the email went out. Not assuming it did. No follow-up scheduled.",
+             fo_conversation_id=conv)
+        set_status(case_id, "escalated")
+        return
     set_status(case_id, "awaiting_reply")
     schedule_follow_up(case_id)
+
+
+_HELD = re.compile(r"go-ahead|go ahead|say go|\bhold(ing)?\b|\bheld\b|waiting for your|before i send|"
+                   r"want me to send|shall i send|should i send|confirm (before|and i)|approve", re.I)
+_SENT = re.compile(r"\b(i('ve| have)?|fo( has)?) (just )?sent\b|\b(email|message|it) (was|has been|is) sent\b|"
+                   r"\bsent (it|the email|the message|your email)\b|\bwent out\b", re.I)
+
+
+def fo_send_outcome(text: str) -> str:
+    """Code decides from Fo's own words: 'held' beats 'sent'; anything else is 'unclear', never assumed sent."""
+    if _HELD.search(text or ""):
+        return "held"
+    if _SENT.search(text or ""):
+        return "sent"
+    return "unclear"
 
 
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")

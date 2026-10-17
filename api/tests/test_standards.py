@@ -88,3 +88,15 @@ def test_code_flags_unexplained_emails_and_transfers():
     assert "money-transfer" in pipeline.route(e, 1, "Please send $500 to account 1234")
     assert "money-transfer" in pipeline.route(e, 1, "they asked for gift cards")
     assert "unexplained email" in pipeline.route(ex(), 1, "from someone@x.com")  # nothing explains it
+
+
+def test_fo_send_outcome_never_assumes_sent():
+    from app import pipeline
+    held = ("This one's held for your go-ahead since it's the first email I'd ever send for you. "
+            "Say go and I'll send it as-is.")
+    assert pipeline.fo_send_outcome(held) == "held"
+    assert pipeline.fo_send_outcome("Done. I sent the email to test bank inbox.") == "sent"
+    assert pipeline.fo_send_outcome("The email has been sent.") == "sent"
+    assert pipeline.fo_send_outcome("Drafted the dispute.") == "unclear"
+    assert pipeline.fo_send_outcome("") == "unclear"
+    assert pipeline.fo_send_outcome("I sent it, but want me to send a copy? Say go.") == "held"
