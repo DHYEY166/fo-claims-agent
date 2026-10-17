@@ -15,10 +15,13 @@ def real_target() -> Optional[str]:
 
 
 def mask(value: Any) -> Any:
-    real = real_target()
-    if not real or not isinstance(value, str):
+    if not isinstance(value, str):
         return value
-    return re.sub(re.escape(real), LABEL, value, flags=re.I)
+    from .fo_oauth import secret_values
+    for s in secret_values():
+        value = value.replace(s, "[REDACTED_TOKEN]")
+    real = real_target()
+    return re.sub(re.escape(real), LABEL, value, flags=re.I) if real else value
 
 
 def mask_deep(value: Any) -> Any:

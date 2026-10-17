@@ -6,9 +6,9 @@ from contextlib import asynccontextmanager
 from typing import Literal, Optional
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from pydantic import BaseModel
-from . import bus, config, db, masking, pipeline
+from . import bus, config, db, fo_oauth, masking, pipeline
 from .webhook_verify import InvalidSignature, verify
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
@@ -41,6 +41,42 @@ class ApprovalIn(BaseModel):
     event_id: str
     decision: Literal["approve", "reject"]
     note: Optional[str] = None
+
+
+def _local_only(request: Request) -> None:
+    if not request.client or request.client.host not in ("127.0.0.1", "::1", "localhost"):
+        raise HTTPException(403, "sign-in routes are only reachable from this computer")
+
+
+@app.get("/oauth/start")
+def oauth_start(request: Request):
+    """Dhyey opens this and approves Fo access himself on Wajo's own sign-in page."""
+    _local_only(request)
+    redirect_uri = str(request.url_for("oauth_callback"))
+    try:
+        return RedirectResponse(fo_oauth.start(redirect_uri), status_code=302)
+    except (fo_oauth.OAuthError, Exception) as e:
+        raise HTTPException(502, f"could not start Fo sign-in: {type(e).__name__}")
+
+
+@app.get("/oauth/callback", name="oauth_callback")
+def oauth_callback(request: Request, code: Optional[str] = None, state: Optional[str] = None,
+                   error: Optional[str] = None):
+    _local_only(request)
+    if error or not code or not state:
+        return HTMLResponse(f"<h3>Fo sign-in did not complete</h3><p>{masking.mask(error or 'missing code')}</p>",
+                            status_code=400)
+    try:
+        fo_oauth.callback(code, state)
+    except fo_oauth.OAuthError as e:
+        return HTMLResponse(f"<h3>Fo sign-in failed</h3><p>{e}</p>", status_code=400)
+    log.info("fo oauth connected")
+    return HTMLResponse("<h3>Fo is connected.</h3><p>You can close this tab.</p>")
+
+
+@app.get("/oauth/status")
+def oauth_status():
+    return fo_oauth.status()
 
 
 @app.get("/api/health")
