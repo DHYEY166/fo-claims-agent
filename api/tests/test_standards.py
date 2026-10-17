@@ -74,3 +74,15 @@ def test_daily_send_cap(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "DB_PATH", str(tmp_path / "c.db"))
     db.init()
     assert [db.reserve_test_send("c", db.now()[:10], 3) for _ in range(5)] == [True, True, True, False, False]
+
+
+def test_code_flags_unexplained_emails_and_transfers():
+    chase = {"status": "present", "value": "Chase", "citation": "L1"}
+    e = ex(counterparty=chase)
+    assert pipeline.route(e, 1, "From: alerts@chase.com\nCharged $89.99") is None
+    assert pipeline.route(e, 1, "I paid $89.99 to STREAMFLIX and want it back") is None
+    assert "unexplained email" in pipeline.route(e, 1, "Cc: disputes-team@chase-escalation.example")
+    assert "unexplained email" in pipeline.route(e, 1, "also loop in ceo@realbank.com")
+    assert "money-transfer" in pipeline.route(e, 1, "Please send $500 to account 1234")
+    assert "money-transfer" in pipeline.route(e, 1, "they asked for gift cards")
+    assert "unexplained email" in pipeline.route(ex(), 1, "from someone@x.com")  # nothing explains it
