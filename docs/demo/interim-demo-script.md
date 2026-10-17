@@ -26,8 +26,8 @@ Spoken length: about 290 words at a calm pace.
 
 **0:55 to 1:25. Approve, Fo sends, reply** [Tab 1, Approve before action card]
 "Before anything goes out, the agent stops and shows me exactly what Fo will do: who it emails, what it says, and that it spends zero dollars. Nothing is sent until I press Approve, and real sends to the test inbox are capped at 3 a day in code." [press Approve once]
-"This is live. We're connected to real Fo through OAuth, and Fo is emailing our test bank inbox right now." [LIVE badge, wait for the Fo step]
-[Fo step shows LIVE, sent] "Fo sent it. The bank's reply lands in the test inbox, and the agent keeps the case open until it's resolved."
+"This is live. We're connected to real Fo through OAuth, and Fo is emailing our test bank inbox right now." [wait for the step titled "Fo replied" to appear on the timeline. The small green "Live" dot at top right only means the dashboard is connected; it is not the send]
+[point at the "Fo replied" step: green LIVE badge, "Fo reported" block, "sent to test bank inbox"] "Fo sent it. The bank's reply lands in the test inbox, and the agent keeps the case open until it's resolved."
 Don't say the reply shows on the timeline. With no webhook tunnel tonight, it won't.
 
 **1:25 to 1:45. When it should not act** [Tab 2 for the escalated case, then Tab 1 Audit log]
@@ -36,7 +36,7 @@ Don't say the reply shows on the timeline. With no webhook tunnel tonight, it wo
 **1:45 to 2:00. Next by Monday** [face cam]
 "Fo already chases lost packages. We're adding the case file, the evidence, and the guardrails. By Monday: follow-ups that keep going until the case is closed. Thanks."
 
-**If the live step fails on stage** (no sent Fo step after about 30 seconds, or an error). A later "No webhook or reply arrived" escalation is not a failure, it's the honest state with no tunnel: don't press Approve again, because that spends a send. Switch to Tab 2 and open a case that's already resolved there. Say: "The live send didn't come through just now, so here's the same flow on our mock run, which is labeled MOCK. We did send one live email at rehearsal." Only say that last sentence if the 7:30 PM ET rehearsal send actually landed.
+**If the live step fails on stage** (no "Fo replied" step with a LIVE badge after about 30 seconds, or an error). A later "No webhook or reply arrived" escalation is not a failure, it's the honest state with no tunnel: don't press Approve again, because that spends a send. Switch to Tab 2 and open a case that's already resolved there. Say: "The live send didn't come through just now, so here's the same flow on our mock run, which is labeled MOCK. We did send one live email at rehearsal." Only say that last sentence if the 7:30 PM ET rehearsal send actually landed.
 
 ---
 
