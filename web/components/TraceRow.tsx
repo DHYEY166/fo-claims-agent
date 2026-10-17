@@ -13,6 +13,8 @@ export function TraceRow({ trace }: { trace?: Trace | null }) {
   if (!trace || typeof trace !== "object") return null;
   const errors = Array.isArray(trace.errors) ? trace.errors.filter(Boolean) : [];
   const bad = errors.length > 0;
+  const grounding = Array.isArray(trace.grounding_problems) ? trace.grounding_problems.filter(Boolean) : [];
+  const warn = !bad && grounding.length > 0;
   const tok = trace.tokens ? (trace.tokens.input ?? 0) + (trace.tokens.output ?? 0) : null;
   const parts = [
     trace.agent,
@@ -22,12 +24,13 @@ export function TraceRow({ trace }: { trace?: Trace | null }) {
     trace.prompt_id,
     trace.retries ? `${trace.retries} retr${trace.retries === 1 ? "y" : "ies"}` : null,
     bad ? `${errors.length} error${errors.length === 1 ? "" : "s"}` : null,
+    grounding.length ? `${grounding.length} grounding issue${grounding.length === 1 ? "" : "s"}` : null,
   ].filter(Boolean);
   return (
     <div className="mt-1.5" data-trace>
       <button onClick={() => setOpen((o) => !o)} title="Per-step trace"
         className={cx("group inline-flex max-w-full items-center gap-1 rounded px-1 py-0.5 font-mono text-[11px] transition",
-          bad ? "bg-rose-50 text-rose-700 hover:bg-rose-100" : "text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600")}>
+          bad ? "bg-rose-50 text-rose-700 hover:bg-rose-100" : warn ? "bg-amber-50 text-amber-700 hover:bg-amber-100" : "text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600")}>
         <ChevronRight className={cx("h-3 w-3 shrink-0 transition", open && "rotate-90")} />
         <Activity className="h-3 w-3 shrink-0" />
         <span className="truncate">trace · {parts.join(" · ")}</span>

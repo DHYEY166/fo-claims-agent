@@ -78,9 +78,9 @@ export default function CaseDetail({ params }: { params: Promise<{ id: string }>
           </div>
           <div className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-zinc-500">
             <StatusPill status={data.status} />
-            <span>{typeLabel(data.type)}</span><span className="text-zinc-300">·</span>
-            <span>{data.counterparty ?? "—"}</span><span className="text-zinc-300">·</span>
-            <span className="font-medium tabular-nums text-zinc-900">{data.amount_cents ? money(data.amount_cents, data.currency) : "—"}</span>
+            <span>{typeLabel(data.type)}</span>
+            {data.counterparty && <><span className="text-zinc-300">·</span><span>{maskEmails(data.counterparty)}</span></>}
+            {!!data.amount_cents && <><span className="text-zinc-300">·</span><span className="font-medium tabular-nums text-zinc-900">{money(data.amount_cents, data.currency)}</span></>}
             {typeof data.confidence === "number" && <ConfidenceChip value={data.confidence} />}
           </div>
         </div>

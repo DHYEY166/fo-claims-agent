@@ -39,7 +39,7 @@ data: <Event JSON>
 ```ts
 type Case = {
   id: string;
-  type: 'card_dispute' | 'insurance_claim' | 'package_claim';
+  type: 'card_dispute' | 'insurance_claim' | 'package_claim' | 'other'; // other = out of scope (UI: "Out of scope")
   title: string;
   counterparty: string | null;    // real backend sends null until classified
   amount_cents: number | null;    // ditto
@@ -67,10 +67,11 @@ type Event = {
   actor: 'agent' | 'fo' | 'human' | 'counterparty';
   proposed_action?: string | ProposedAction; // approval_requested. Mock: plain string, e.g. "Call Chase disputes line, request provisional
                                   // credit of $184.20". Real backend: structured object (below). UI renders both.
-  evidence?: Record<string, unknown>; // evidence_gathered (real backend): extracted fields, shown as a key/value grid
+  evidence?: Record<string, EvidenceValue>; // evidence_gathered: plain values or per-field objects (below)
+  trace?: Trace;                  // OPTIONAL per-step trace record; UI renders nothing if absent
   pending?: boolean;              // approval_requested awaiting a decision => UI shows "Approve before action" card
   transcript?: { speaker: string; text: string; ts?: string }[];   // call_placed
-  email?: { from: string; to: string; subject: string; body: string }; // email_sent / reply_received
+  email?: { from: string; to: string; cc?: string | string[]; subject: string; body: string }; // email_sent / reply_received
   fo_conversation_id?: string;    // Fo events. UI: muted monospace line
   mock?: boolean;
 };
@@ -84,7 +85,24 @@ type ProposedAction = {
   message?: string | null;        // exact instruction Fo will receive
   spend_cents?: number | null;
   approval_id?: string;
+  summary?: string;               // optional one-line headline, e.g. "Email Chase disputes, request provisional credit of $184.20"
 };
+
+type Trace = {                    // optional; one per event
+  agent: string;                  // e.g. "classifier"
+  input_source: string;           // where the step's input came from (user:paste, intake, classifier, human, fo, ...)
+  duration_ms: number;
+  tokens?: { input: number; output: number };
+  errors?: string[];              // non-empty => trace row rendered red
+  retries?: number;
+  model?: string;
+  prompt_id?: string;             // e.g. "prompts/classify.v1" or "classify.v2"
+  grounding_problems?: string[];  // real backend extra; non-empty => amber
+};
+
+type EvidenceValue =
+  | string | number | boolean | null                       // plain form
+  | { value?: unknown; status: 'present' | 'absent' | 'ambiguous'; citation?: string }; // per-field form
 
 type AuditRow = {
   id: number;                     // sequential
@@ -96,6 +114,13 @@ type AuditRow = {
   row_hash: string;               // sha256 hex, chained over the previous row
 };
 ```
+
+## Display rules (frontend, demo safety)
+
+- **Email only.** `NEXT_PUBLIC_DEMO_HIDE_CALLS` (default on) hides `call_placed` events and transcripts from the timeline.
+- **Recipients are masked.** Every outbound address (`proposed_action.to`, `email.to`/`cc`, reply `from`, addresses inside
+  bodies/details/audit rows) is displayed as "test bank inbox" (e.g. the backend alias `test-bank-inbox@alias.invalid`).
+- **Simulated steps.** Events with `mock: true` or a `[MOCK] ` title prefix show an amber MOCK badge (prefix stripped).
 
 ## Approval flow (trust by design)
 

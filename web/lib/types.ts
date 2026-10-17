@@ -54,6 +54,7 @@ export interface Trace {
   retries?: number;
   model?: string;
   prompt_id?: string;
+  grounding_problems?: string[]; // real backend: extraction values not grounded in the source
 }
 
 export type CaseWithEvents = Case & { events: CaseEvent[] };
