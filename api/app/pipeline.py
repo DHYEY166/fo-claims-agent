@@ -1,0 +1,187 @@
+"""Case state machine.
+
+new -> classified -> gathering_evidence -> awaiting_approval -> contacting -> awaiting_reply
+    -> follow_up_scheduled -> (awaiting_reply ...) -> resolved
+Side exits: rejected (user said no), escalated (low confidence / injection), failed (Fo error)."""
+import logging, threading, time
+from datetime import datetime, timedelta, timezone
+from . import config, db, bus
+from .classifier import classify
+from .fo_client import FoClient, FoError
+
+log = logging.getLogger("pipeline")
+
+TRANSITIONS = {
+    "new": {"classified", "escalated", "failed"},
+    "classified": {"gathering_evidence", "escalated"},
+    "gathering_evidence": {"awaiting_approval", "escalated", "failed"},
+    "awaiting_approval": {"contacting", "rejected"},
+    "contacting": {"awaiting_reply", "failed", "escalated"},
+    "awaiting_reply": {"follow_up_scheduled", "resolved", "failed", "escalated"},
+    "follow_up_scheduled": {"awaiting_reply", "resolved", "escalated", "failed"},
+    "escalated": {"awaiting_approval", "resolved"},
+    "failed": set(), "resolved": set(), "rejected": set(),
+}
+
+class IllegalTransition(Exception):
+    pass
+
+def set_status(case_id, new, **fields):
+    cur = db.get_case(case_id)["status"]
+    if new != cur and new not in TRANSITIONS[cur]:
+        raise IllegalTransition(f"{cur} -> {new}")
+    c = db.update_case(case_id, status=new, **fields)
+    bus.publish("case_updated", c)
+    return c
+
+def emit(case_id, kind, title, actor, detail=None, **payload):
+    e = db.insert_event(case_id, kind, title, actor, detail, **payload)
+    bus.publish("case_event", e)
+    return e
+
+def _bg(fn, *a):
+    threading.Thread(target=fn, args=a, daemon=True).start()
+
+DEFAULT_COUNTERPARTY = {"card_dispute": "Card issuer", "package_claim": "Carrier", "insurance_claim": "Insurer"}
+
+def intake(source: str, text: str, filenames=None) -> dict:
+    c = db.insert_case(type="card_dispute", title=(text.strip().splitlines() or ["New claim"])[0][:60],
+                       status="new", source=source, raw_text=text, currency="USD",
+                       mock=int(config.FO_MOCK))
+    emit(c["id"], "note", f"Claim received via {source}", "human",
+         detail=("Attachments: " + ", ".join(filenames)) if filenames else None)
+    bus.publish("case_updated", c)
+    _bg(process, c["id"])
+    return c
+
+def process(case_id):
+    try:
+        row = db.get_case_row(case_id)
+        cl = classify(row["raw_text"])
+        typ = cl.get("type") if cl.get("type") in DEFAULT_COUNTERPARTY else "card_dispute"
+        conf = float(cl.get("confidence") or 0)
+        cp = cl.get("counterparty") or DEFAULT_COUNTERPARTY[typ]
+        mock = bool(row["mock"]) or bool(cl.get("mock"))
+        import json as _j
+        db.update_case(case_id, type=typ, title=cl.get("title") or row["title"], counterparty=cp,
+                       amount_cents=cl.get("amount_cents"), currency=cl.get("currency") or "USD",
+                       confidence=conf, mock=int(mock), evidence=_j.dumps(cl.get("evidence") or {}))
+        if cl.get("injection_detected"):
+            emit(case_id, "escalated_to_human", "Possible prompt injection in forwarded content", "agent",
+                 detail="Content tried to instruct the agent. Paused for human review.")
+            set_status(case_id, "escalated"); return
+        if conf < config.CONFIDENCE_THRESHOLD or cl.get("type") not in DEFAULT_COUNTERPARTY:
+            emit(case_id, "escalated_to_human", f"Low confidence ({conf:.2f}), needs a human", "agent",
+                 detail=f"Best guess: {cl.get('type')}")
+            set_status(case_id, "escalated"); return
+        set_status(case_id, "classified")
+        emit(case_id, "classified", f"Classified as {typ.replace('_',' ')} ({conf:.0%})", "agent",
+             detail=("Stub classifier (no Anthropic key)" if cl.get("mock") else f"Claude {config.CLAUDE_MODEL}"),
+             mock=bool(cl.get("mock")))
+        set_status(case_id, "gathering_evidence")
+        ev = cl.get("evidence") or {}
+        emit(case_id, "evidence_gathered", f"Extracted {len(ev)} evidence fields", "agent",
+             detail="; ".join(f"{k}: {v}" for k, v in ev.items()) or None, evidence=ev)
+        request_approval(case_id)
+    except Exception as e:
+        log.exception("process failed")
+        emit(case_id, "note", "Processing failed", "agent", detail=str(e))
+        set_status(case_id, "failed")
+
+def build_fo_request(case) -> str:
+    target = config.FO_TEST_TARGET or "TEST TARGET NOT CONFIGURED"
+    amt = f"${case['amount_cents']/100:.2f} " if case.get("amount_cents") else ""
+    return (f"TEST RUN for a hackathon demo. Do not contact any real business. "
+            f"Email {target} (acting as {case['counterparty']}) to open a {case['type'].replace('_',' ')} "
+            f"for {amt}regarding: {case['title']}. Ask them to confirm receipt and give a reference number.")
+
+def request_approval(case_id):
+    c = db.get_case(case_id)
+    action = {"channel": "email", "to": config.FO_TEST_TARGET or None, "acting_as": c["counterparty"],
+              "message": build_fo_request(c), "spend_cents": 0}
+    emit(case_id, "approval_requested", "Approve Fo to contact the counterparty?", "agent",
+         detail="Nothing is sent until you approve.", proposed_action=action, pending=True)
+    set_status(case_id, "awaiting_approval")
+
+def decide(case_id, event_id, decision, note=None):
+    ev = db.get_event(event_id)
+    if not ev or ev["case_id"] != case_id or ev["kind"] != "approval_requested" or not ev.get("pending"):
+        raise ValueError("no pending approval with that id on this case")
+    db.update_event_payload(event_id, pending=False)
+    bus.publish("case_event", db.get_event(event_id))
+    if decision == "reject":
+        out = emit(case_id, "rejected", "You rejected the action", "human", detail=note)
+        set_status(case_id, "rejected"); return out
+    out = emit(case_id, "approved", "You approved the action", "human", detail=note)
+    set_status(case_id, "contacting")
+    _bg(contact, case_id, ev["proposed_action"])
+    return out
+
+def contact(case_id, action):
+    try:
+        if config.FO_MOCK:
+            return _mock_contact(case_id, action)
+        if not config.FO_TEST_TARGET:
+            raise RuntimeError("FO_TEST_TARGET not set; refusing to send to an unverified target")
+        fo = FoClient()
+        def prog(p, conv):
+            emit(case_id, "note", "Fo is working", "fo", detail=p, fo_conversation_id=conv)
+        reply = fo.ask_and_wait(action["message"], new=True, on_progress=prog)
+        conv = reply.get("conversationId")
+        db.update_case(case_id, fo_conversation_id=conv)
+        st = reply.get("status")
+        if st in ("failed", "timeout"):
+            emit(case_id, "note", f"Fo turn {st}", "fo", detail=reply.get("text") or reply.get("progress"),
+                 fo_conversation_id=conv)
+            set_status(case_id, "failed" if st == "failed" else "escalated"); return
+        emit(case_id, "email_sent", f"Fo emailed {action.get('to')}", "fo",
+             detail=reply.get("text") or reply.get("reply") or reply.get("progress"), fo_conversation_id=conv,
+             email={"from": "Fo", "to": action.get("to"), "subject": "Claim filing", "body": action["message"]})
+        set_status(case_id, "awaiting_reply")
+        schedule_follow_up(case_id)
+    except (FoError, Exception) as e:
+        log.exception("contact failed")
+        emit(case_id, "note", "Fo call failed", "agent", detail=str(e))
+        set_status(case_id, "failed")
+
+def _mock_contact(case_id, action):
+    step = config.MOCK_STEP_SECONDS
+    time.sleep(step)
+    emit(case_id, "email_sent", "[MOCK] Fo emailed the counterparty", "fo", mock=True,
+         email={"from": "fo@wajo (mock)", "to": action.get("to") or "test-target@example.com",
+                "subject": "Dispute filing", "body": action["message"]})
+    set_status(case_id, "awaiting_reply")
+    schedule_follow_up(case_id)
+    time.sleep(step)
+    on_counterparty_reply(case_id, "[MOCK] Thanks, we received your claim. Reference #MOCK-4821. "
+                          "Expect a provisional credit in 3 to 5 business days.", mock=True, resolve=True)
+
+def schedule_follow_up(case_id):
+    at = (datetime.now(timezone.utc) + timedelta(seconds=config.FOLLOW_UP_SECONDS)).isoformat()
+    c = db.get_case(case_id)
+    if c["status"] == "awaiting_reply":
+        set_status(case_id, "follow_up_scheduled", follow_up_at=at)
+        emit(case_id, "follow_up_scheduled", "Follow-up scheduled", "agent", detail=f"If no reply by {at}")
+
+def on_counterparty_reply(case_id, text, conv=None, mock=False, resolve=False):
+    c = db.get_case(case_id)
+    if c["status"] in ("resolved", "failed", "rejected"):
+        return
+    emit(case_id, "reply_received", "Reply received", "counterparty", detail=text, mock=mock,
+         fo_conversation_id=conv)
+    if c["status"] == "follow_up_scheduled":
+        set_status(case_id, "awaiting_reply", follow_up_at=None)
+    if resolve:
+        set_status(case_id, "resolved")
+        emit(case_id, "resolved", "Case resolved", "agent", detail=text)
+
+def run_follow_ups():
+    for c in db.due_follow_ups(datetime.now(timezone.utc).isoformat()):
+        emit(c["id"], "note", "Follow-up due, no reply yet", "agent",
+             detail="Escalating for a human decision (auto follow-up sends are gated on approval).")
+        set_status(c["id"], "escalated", follow_up_at=None)
+
+def scheduler_loop(stop: threading.Event, every=5):
+    while not stop.wait(every):
+        try: run_follow_ups()
+        except Exception: log.exception("scheduler")
