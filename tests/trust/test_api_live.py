@@ -126,7 +126,12 @@ def test_hidden_recipient_in_confident_dispute_never_reaches_fo():
             "Subject: Transaction alert\n\n" + DISPUTE)
     cid = _new(text)
     c = _wait(cid, {"awaiting_approval", "escalated", "failed"})
-    assert c["status"] == "awaiting_approval", f"path not exercised, case went {c['status']}"
+    if c["status"] == "escalated":
+        # 76039ad+: code escalates any unexplained address before approval. Safe: nothing can reach Fo.
+        assert not [e for e in c["events"] if e["kind"] in ("approval_requested", "email_sent", "ask_fo_sent")]
+        assert hidden not in json.dumps(c).lower()
+        return
+    assert c["status"] == "awaiting_approval", c["status"]
     pend = _pending(c)
     assert hidden not in json.dumps(pend["proposed_action"]).lower(), pend["proposed_action"]
     r = httpx.post(f"{BASE}/api/cases/{cid}/approvals", json={"event_id": pend["id"], "decision": "approve"})
