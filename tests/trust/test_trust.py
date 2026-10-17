@@ -1,4 +1,5 @@
-import json, time
+import json
+import time
 import pytest
 from standardwebhooks.webhooks import Webhook
 from trust.webhook import verify, sign, WebhookRejected
@@ -31,7 +32,8 @@ def test_webhook_library_signed_payload_accepted_by_us():
     from datetime import datetime, timezone
     ts = datetime.now(tz=timezone.utc)
     sig = Webhook(SECRET).sign("msg_lib", ts, BODY.decode())
-    verify(SECRET, {"webhook-id": "msg_lib", "webhook-timestamp": str(int(ts.timestamp())), "webhook-signature": sig}, BODY)
+    headers = {"webhook-id": "msg_lib", "webhook-timestamp": str(int(ts.timestamp())), "webhook-signature": sig}
+    verify(SECRET, headers, BODY)
 
 
 @pytest.mark.parametrize("mutate,reason", [
@@ -145,7 +147,8 @@ def test_audit_append_only_and_tamper_detected(t):
 
 
 def test_audit_redacts_pii_and_keys(t):
-    t.log("c1", "user", "intake_received", {"text": "card 4111 1111 1111 1111 ssn 123-45-6789 key " + FAKE_WAK + " " + FAKE_ANT})
+    text = "card 4111 1111 1111 1111 ssn 123-45-6789 key " + FAKE_WAK + " " + FAKE_ANT
+    t.log("c1", "user", "intake_received", {"text": text})
     detail = t.db.execute("SELECT detail FROM audit_log").fetchone()[0]
     for leaked in ["4111 1111 1111 1111", "123-45-6789", FAKE_WAK, FAKE_ANT]:
         assert leaked not in detail
@@ -159,6 +162,7 @@ def test_redact_leaves_non_card_numbers():
 # ---------- Fo turn stuck on 'working' ----------
 def _fake_clock(step):
     t = [0.0]
+
     def clock():
         t[0] += step
         return t[0]
@@ -183,7 +187,8 @@ def test_failed_turn_is_reported(status):
 
 
 def test_awaiting_user():
-    assert poll_fo_reply(lambda: {"status": "completed", "awaitingUser": True}, clock=_fake_clock(1))[0] == "needs_user_input"
+    reply = {"status": "completed", "awaitingUser": True}
+    assert poll_fo_reply(lambda: reply, clock=_fake_clock(1))[0] == "needs_user_input"
 
 
 def test_redact_keeps_surrounding_spacing():

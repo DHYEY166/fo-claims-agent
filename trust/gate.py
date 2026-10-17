@@ -1,19 +1,35 @@
 """Approval gate + hash-chained audit log (spec: docs/TRUST_SPEC.md)."""
-import hashlib, re, json, sqlite3, time, uuid
+import hashlib
+import json
+import re
+import sqlite3
+import time
+import uuid
+
 from .redact import redact
 
 APPROVAL_TTL_S = 900
 
 
-class ApprovalRequired(Exception): ...
-class ApprovalConflict(Exception): ...
-class TargetNotAllowed(Exception): ...
+class ApprovalRequired(Exception):
+    pass
+
+
+class ApprovalConflict(Exception):
+    pass
+
+
+class TargetNotAllowed(Exception):
+    pass
 
 
 # Demo decision (Dhyey, Oct 17): email only. Phone targets and call actions are refused even if allowlisted.
 _EMAIL = re.compile(r"[^@\s:]+@[^@\s]+\.[A-Za-z]{2,}")
 CALL_ACTIONS = {"call", "phone_call", "start_fo_call"}
-class SpendLimitExceeded(Exception): ...
+
+
+class SpendLimitExceeded(Exception):
+    pass
 
 
 def action_hash(case_id, action_type, target, prompt_text, amount_cents=0) -> str:

@@ -1,7 +1,6 @@
 """The daily cap on real sends to the private test-bank inbox (api/app/db.py reserve_test_send)."""
 import concurrent.futures as cf
 import importlib
-import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
