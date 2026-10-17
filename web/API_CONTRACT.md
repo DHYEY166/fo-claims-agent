@@ -128,3 +128,22 @@ type AuditRow = {
 1. Agent emits `approval_requested` with `pending: true` and a concrete `proposed_action`; case status → `awaiting_approval`.
 2. Nothing external (call, email, card) happens until `POST /api/cases/:id/approvals` with `decision: 'approve'`.
 3. Server flips the request to `pending: false` (re-emitted as `case_event`) and emits `approved` or `rejected`.
+
+## Fo hold / go-ahead (feature/fo-oauth 99d042b)
+
+There is no separate endpoint. The go-ahead is an ordinary pending approval:
+
+- `approval_requested` event, title "Give Fo the go-ahead to send it?", `proposed_action.kind == "fo_go"`
+  (`{kind:"fo_go", channel:"email", to, conversation_id, message:"go", spend_cents:0, approval_id}`).
+- Approved through the existing `POST /api/cases/{id}/approvals {event_id, decision:"approve"}`. A second decision returns 409.
+- UI: approval card titled "Give Fo the go-ahead", button "Give Fo the go-ahead", note
+  "Second approval, on Fo's side. Same email, no new send slot.", plus a confirm dialog. One click, disabled afterwards, never retried.
+
+Send state of a live "Fo replied" step (never says "sent" without a reason):
+
+1. Backend signals: a later "Fo is holding the email for your go-ahead" step, or a pending `fo_go` approval → HELD.
+   "Follow-up scheduled" before the next Fo reply → sent.
+2. Text fallback, only when there is no backend signal: `/^\s*sent\b/`, `/\bI('ve| have)? sent\b/`, `/message id/` → sent;
+   otherwise "held for your go-ahead" / "say go and I'll send" / "waiting for your go-ahead" → HELD; otherwise neutral "Fo drafted email to test bank inbox".
+   Exception for old backends (e8a5889) that scheduled a follow-up even after a hold: if Fo's text has those narrow held words
+   and no sent words, the step shows HELD.

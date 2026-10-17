@@ -61,6 +61,12 @@ export default function CaseDetail({ params }: { params: Promise<{ id: string }>
   const pending = data.events.filter((e) => e.kind === "approval_requested" && e.pending);
   const escalation = [...data.events].reverse().find((e) => e.kind === "escalated_to_human");
   const escReasons = escalation ? escalationReasons(escalation) : [];
+  const sendStates = foSendStates(data.events, { fo_sent: data.fo_sent, held: data.held });
+  const reports = data.events.filter(isFoReportEvent);
+  const lastReport = reports[reports.length - 1];
+  const caseHeld = data.held === true || pending.some(isFoGo) || (!!lastReport && sendStates[lastReport.id] === "held"
+    && (data.status === "escalated" || data.status === "awaiting_approval"));
+  const isHoldEscalation = !!escalation && isHoldingStep(escalation);
   const working = ["new", "classified", "gathering_evidence", "contacting"].includes(data.status);
 
   return (
@@ -79,6 +85,7 @@ export default function CaseDetail({ params }: { params: Promise<{ id: string }>
           </div>
           <div className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-zinc-500">
             <StatusPill status={data.status} />
+            {caseHeld && <HeldBadge />}
             <span>{typeLabel(data.type)}</span>
             {data.counterparty && <><span className="text-zinc-300">·</span><span>{maskEmails(data.counterparty)}</span></>}
             {!!data.amount_cents && <><span className="text-zinc-300">·</span><span className="font-medium tabular-nums text-zinc-900">{money(data.amount_cents, data.currency)}</span></>}
@@ -89,7 +96,7 @@ export default function CaseDetail({ params }: { params: Promise<{ id: string }>
 
       <div className="grid grid-cols-[minmax(0,1fr)_280px] gap-6">
         <div className="space-y-5">
-          {escalation && (data.status === "escalated" || !pending.length) && (
+          {escalation && (data.status === "escalated" || (!pending.length && !isHoldingStep(escalation))) && (
             <section className="animate-fade-in overflow-hidden rounded-xl border border-amber-300 bg-amber-50/60">
               <div className="flex items-start gap-3 px-5 py-4">
                 <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
@@ -99,7 +106,9 @@ export default function CaseDetail({ params }: { params: Promise<{ id: string }>
                     <p className="mt-1.5 text-sm text-amber-900"><span className="font-medium">Reason:</span> {escReasons.map(maskEmails).join("; ")}</p>
                   )}
                   {escalation.detail && <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-amber-900/80">{maskEmails(escalation.detail)}</p>}
-                  <p className="mt-2 text-xs font-medium text-amber-700">The agent stopped before contacting anyone and handed this to a human EA.</p>
+                  <p className="mt-2 text-xs font-medium text-amber-700">{isHoldEscalation
+                    ? "Fo drafted the email but nothing was sent. Handed to a human EA."
+                    : "The agent stopped before contacting anyone and handed this to a human EA."}</p>
                 </div>
               </div>
             </section>
@@ -111,7 +120,7 @@ export default function CaseDetail({ params }: { params: Promise<{ id: string }>
             <ol className="relative">
               {visible.map((e, i) => (
                 <TimelineItem key={e.id} e={e} last={i === visible.length - 1 && !working} fresh={fresh.has(e.id)} now={now}
-                  caseCtx={{ status: data.status, fo_sent: data.fo_sent, held: data.held, reasons: escalation ? [escalation.title, escalation.detail ?? "", ...escReasons] : [] }} />
+                  sendState={sendStates[e.id] ?? null} />
               ))}
               {working && (
                 <li className="flex items-center gap-3 pl-0.5 text-sm text-zinc-400">
@@ -166,18 +175,46 @@ function MockBadge() {
   );
 }
 
-const HELD_RE = /held for your go-ahead|go-ahead|go ahead|say go|waiting for your|before i send/i;
+/** The real-path "Fo replied" step (FO_MOCK=0): a non-simulated Fo note produced by get_fo_reply. */
+function isFoReportEvent(e: CaseEvent) {
+  const mock = e.mock === true || /^\[MOCK\]\s*/i.test(e.title);
+  return !mock && e.actor === "fo" && (String(e.trace?.tool ?? "").includes("get_fo_reply") || e.title === "Fo replied");
+}
 
-/** Send state of a "Fo replied" step. Never "sent" unless a backend field confirms it. */
-function foSendState(e: CaseEvent, c: { status?: string; fo_sent?: boolean; held?: boolean; reasons?: string[] }): "sent" | "held" | "drafted" {
-  if (e.fo_sent === true || (e.fo_sent === undefined && c.fo_sent === true)) return "sent";
-  if (e.held === true || c.held === true) return "held";
-  if (e.fo_sent === false && HELD_RE.test(e.detail ?? "")) return "held";
-  if (HELD_RE.test(e.detail ?? "")) return "held";
-  const stepEscalated = e.status === "escalated" && HELD_RE.test([e.title, e.detail, ...(Array.isArray(e.reason) ? e.reason : [e.reason ?? ""])].join(" "));
-  const caseEscalated = c.status === "escalated" && HELD_RE.test((c.reasons ?? []).join(" "));
-  if (stepEscalated || caseEscalated) return "held";
-  return "drafted";
+// Text fallback only, for "Fo replied" steps with no backend signal (pre-hold-detection backends).
+// Narrow on purpose: "Thanks for the go-ahead. I sent the email" must not read as held.
+const SENT_TEXT = [/^\s*sent\b/i, /\bI(?:'ve| have)? sent\b/i, /message id/i];
+const HELD_TEXT = /held for your go-ahead|say go and I(?:'|’)?ll send|waiting for your go-ahead/i;
+const isFoGo = (e: CaseEvent) => e.kind === "approval_requested" && typeof e.proposed_action === "object" && e.proposed_action?.kind === "fo_go";
+const isHoldingStep = (e: CaseEvent) => /^Fo is holding the email/i.test(e.title);
+const isFollowUp = (e: CaseEvent) => e.kind === "follow_up_scheduled" || /^Follow-up scheduled/i.test(e.title);
+type SendState = "sent" | "held" | "drafted";
+
+/**
+ * Send state of each live "Fo replied" step. Backend rule: a send is confirmed only when that
+ * reply is followed by a "Follow-up scheduled" step (before the next Fo reply). Never "sent" otherwise.
+ */
+function foSendStates(events: CaseEvent[], c: { fo_sent?: boolean; held?: boolean }): Record<string, SendState> {
+  const out: Record<string, SendState> = {};
+  events.forEach((e, i) => {
+    if (!isFoReportEvent(e)) return;
+    let j = i + 1;
+    while (j < events.length && !isFoReportEvent(events[j])) j++;
+    const after = events.slice(i + 1, j);
+    const textSent = SENT_TEXT.some((r) => r.test(e.detail ?? ""));
+    const textHeld = !textSent && HELD_TEXT.test(e.detail ?? "");
+    // (a) backend signals
+    if (after.some(isHoldingStep) || after.some(isFoGo) || e.held === true || e.fo_sent === false || c.held === true) out[e.id] = "held";
+    // Pre-hold-detection backends (e8a5889, e.g. case_cbd0d1cf1a) scheduled a follow-up even when Fo held
+    // the email; Fo's own narrow "held" words win there so we never claim a send that didn't happen.
+    else if (after.some(isFollowUp)) out[e.id] = textHeld ? "held" : "sent";
+    // (b) text fallback, only when the backend gave no signal for this step
+    // (b) text fallback, only when the backend gave no signal for this step
+    else if (textSent) out[e.id] = "sent";
+    else if (textHeld) out[e.id] = "held";
+    else out[e.id] = "drafted";
+  });
+  return out;
 }
 
 function HeldBadge() {
@@ -204,29 +241,32 @@ function ApprovalCard({ caseId, event, onConflict }: { caseId: string; event: Ca
   const [err, setErr] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const a = describeAction(event.proposed_action);
+  const foGo = isFoGo(event);
+  const [confirming, setConfirming] = useState(false);
   async function decide(decision: "approve" | "reject") {
     if (decided) return;
     setBusy(decision); setDecided(true); setErr(null);
     try { await api.decide(caseId, { event_id: event.id, decision }); }
     catch (e) {
       if (e instanceof ApiError && e.status === 409) { setInfo("Already decided — this approval was handled already. Refreshing…"); setTimeout(onConflict, 800); }
-      else { setErr(e instanceof Error ? e.message : String(e)); setDecided(false); }
+      else { setErr(e instanceof Error ? e.message : String(e)); if (!foGo) setDecided(false); /* go-ahead: one click, never re-armed */ }
     } finally { setBusy(null); }
   }
   const ActionIcon = a?.channel === "email" ? Mail : a?.channel === "card" ? CreditCard : Phone;
   return (
-    <section className="animate-fade-in overflow-hidden rounded-xl border border-amber-300 bg-white shadow-[0_0_0_4px_rgba(251,191,36,0.12)]">
+    <>
+    <section data-approval-card data-fo-go={foGo || undefined} className="animate-fade-in overflow-hidden rounded-xl border border-amber-300 bg-white shadow-[0_0_0_4px_rgba(251,191,36,0.12)]">
       <div className="flex items-center gap-2 border-b border-amber-200 bg-amber-50 px-5 py-2.5">
         <ShieldAlert className="h-4 w-4 text-amber-600" />
-        <span className="text-sm font-semibold text-amber-900">Approve before action</span>
+        <span className="text-sm font-semibold text-amber-900">{foGo ? "Give Fo the go-ahead" : "Approve before action"}</span>
         <span className="ml-auto text-xs text-amber-700">Waiting on you</span>
       </div>
       <div className="space-y-3 px-5 py-4">
-        <div className="text-xs font-medium uppercase tracking-wider text-zinc-500">The agent will</div>
+        <div className="text-xs font-medium uppercase tracking-wider text-zinc-500">{foGo ? "Fo will" : "The agent will"}</div>
         <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3">
           <div className="flex items-start gap-3">
             <ActionIcon className="mt-0.5 h-4 w-4 shrink-0 text-accent-600" />
-            <p className="text-[15px] font-medium leading-snug text-zinc-900">{maskEmails(a?.headline ?? event.title)}</p>
+            <p className="text-[15px] font-medium leading-snug text-zinc-900">{foGo ? "Send the email it already drafted, in the same conversation" : maskEmails(a?.headline ?? event.title)}</p>
           </div>
           {(a?.to || a?.spend_cents != null) && (
             <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 pl-7 text-xs text-zinc-500">
@@ -234,28 +274,44 @@ function ApprovalCard({ caseId, event, onConflict }: { caseId: string; event: Ca
               {a?.spend_cents != null && <span>Spend <span className="font-medium tabular-nums text-zinc-700">{money(a.spend_cents)}</span></span>}
             </div>
           )}
-          {a?.message && <p className="mt-2 border-l-2 border-zinc-200 pl-3 ml-7 text-sm leading-relaxed text-zinc-600">{maskEmails(a.message)}</p>}
+          {a?.message && !foGo && <p className="mt-2 border-l-2 border-zinc-200 pl-3 ml-7 text-sm leading-relaxed text-zinc-600">{maskEmails(a.message)}</p>}
         </div>
         {event.detail && <p className="text-sm leading-relaxed text-zinc-600">{maskEmails(event.detail)}</p>}
         {err && <p className="text-sm text-rose-600">{err}</p>}
         {info && <p className="rounded-md bg-zinc-100 px-3 py-2 text-sm text-zinc-600">{info}</p>}
         <div className="flex items-center gap-2 pt-1">
-          <button onClick={() => decide("approve")} disabled={decided}
-            className="inline-flex items-center gap-1.5 rounded-md bg-accent-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-accent-700 disabled:cursor-not-allowed disabled:opacity-50">
-            {busy === "approve" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Approve
-          </button>
+          <div>
+            <button onClick={() => (foGo ? setConfirming(true) : decide("approve"))} disabled={decided} data-approve
+              className="inline-flex items-center gap-1.5 rounded-md bg-accent-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-accent-700 disabled:cursor-not-allowed disabled:opacity-50">
+              {busy === "approve" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} {foGo ? "Give Fo the go-ahead" : "Approve"}
+            </button>
+          </div>
           <button onClick={() => decide("reject")} disabled={decided}
             className="inline-flex items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50">
             {busy === "reject" ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />} Reject
           </button>
           <span className="ml-auto text-xs text-zinc-400">Every step is logged below</span>
         </div>
+        {foGo && <p className="-mt-1 text-xs text-zinc-400">Second approval, on Fo&apos;s side. Same email, no new send slot.</p>}
       </div>
     </section>
+    {confirming && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/30" role="dialog" aria-modal="true" data-go-ahead-confirm>
+        <div className="w-full max-w-md rounded-xl border border-zinc-200 bg-white p-5 shadow-xl">
+          <div className="text-sm font-semibold text-zinc-900">Give Fo the go-ahead?</div>
+          <p className="mt-2 text-sm leading-relaxed text-zinc-600">This tells Fo to send the drafted email to the test bank inbox. One send, no retries. Continue?</p>
+          <div className="mt-4 flex justify-end gap-2">
+            <button onClick={() => setConfirming(false)} className="rounded-md border border-zinc-200 px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50">Cancel</button>
+            <button onClick={() => { setConfirming(false); decide("approve"); }} data-go-ahead-continue className="rounded-md bg-accent-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-700">Continue</button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 
-function TimelineItem({ e, last, fresh, now, caseCtx }: { e: CaseEvent; last: boolean; fresh: boolean; now: number; caseCtx: Parameters<typeof foSendState>[1] }) {
+function TimelineItem({ e, last, fresh, now, sendState }: { e: CaseEvent; last: boolean; fresh: boolean; now: number; sendState: SendState | null }) {
   const k = KIND[e.kind] ?? KIND.note;
   // Simulated steps: backend flags them with mock:true and/or a "[MOCK] " title prefix.
   const prefixed = /^\[MOCK\]\s*/i.test(e.title);
@@ -263,9 +319,8 @@ function TimelineItem({ e, last, fresh, now, caseCtx }: { e: CaseEvent; last: bo
   const title = isMock ? e.title.replace(/^\[MOCK\]\s*/i, "") : e.title;
   // A real (non-simulated) outbound email gets a LIVE badge so the on-stage send is unmistakable.
   // Real (FO_MOCK=0) path: the send is reported as a "Fo replied" note from get_fo_reply, not an email_sent event.
-  const isFoReport = !isMock && e.actor === "fo" && (String(e.trace?.tool ?? "").includes("get_fo_reply") || e.title === "Fo replied");
+  const isFoReport = isFoReportEvent(e);
   const isLiveSend = (/^email_sen[td]/.test(String(e.kind)) && !isMock) || isFoReport;
-  const sendState = isFoReport ? foSendState(e, caseCtx) : null;
   const showTranscript = !!e.transcript?.length && !DEMO_HIDE_CALLS;
   const expandable = showTranscript || !!e.email;
   const [open, setOpen] = useState(false);
@@ -280,7 +335,7 @@ function TimelineItem({ e, last, fresh, now, caseCtx }: { e: CaseEvent; last: bo
           <span className="text-sm font-medium text-zinc-900">{maskEmails(title)}</span>
           {isMock && <MockBadge />}
           {isLiveSend && <LiveBadge />}
-          {sendState === "held" && <HeldBadge />}
+          {(sendState === "held" || isHoldingStep(e)) && <HeldBadge />}
           {e.kind === "approval_requested" && e.pending && <span className="rounded-full bg-amber-50 px-1.5 py-px text-[11px] font-medium text-amber-700 ring-1 ring-amber-200">pending</span>}
           <span className="ml-auto shrink-0 text-xs tabular-nums text-zinc-400" title={fmtTime(e.ts)}>{relTime(e.ts, now)}</span>
         </div>

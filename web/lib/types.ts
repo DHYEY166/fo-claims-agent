@@ -84,6 +84,8 @@ export interface ProposedAction {
   spend_cents?: number | null;
   approval_id?: string;
   summary?: string; // optional one-line human summary; UI uses it as the headline when present
+  kind?: "fo_go" | (string & {}); // "fo_go": second approval that tells Fo "go" in the same conversation
+  conversation_id?: string;
 }
 
 /** Evidence fields arrive either as plain values or as {value, status, citation}. */
