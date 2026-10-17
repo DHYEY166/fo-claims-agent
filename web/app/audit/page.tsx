@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Check, Hand, Link2, Loader2, Send, ShieldCheck, ShieldX, KeyRound } from "lucide-react";
 import { api } from "@/lib/api";
 import { useLive } from "@/lib/useLive";
+import { maskEmails } from "@/lib/demo";
 import type { AuditResponse } from "@/lib/types";
 import { LiveDot, cx, fmtTime, relTime, toDate, useNow } from "@/components/ui";
 
@@ -64,7 +65,7 @@ export default function AuditPage() {
                 <span className="text-xs text-zinc-600">{r.actor}</span>
                 <span className="flex min-w-0 flex-wrap gap-1">
                   {d && Object.entries(d).filter(([k]) => k !== "approval_id").map(([k, v]) => (
-                    <span key={k} className="max-w-full truncate rounded bg-zinc-100 px-1.5 py-0.5 text-[11px] text-zinc-600"><span className="text-zinc-400">{k}</span> {String(v)}</span>
+                    <span key={k} className="max-w-full truncate rounded bg-zinc-100 px-1.5 py-0.5 text-[11px] text-zinc-600"><span className="text-zinc-400">{k}</span> {maskEmails(String(v))}</span>
                   ))}
                 </span>
                 <span className="truncate font-mono text-[11px] text-zinc-400" title={r.row_hash}>{r.row_hash.slice(0, 16)}…</span>

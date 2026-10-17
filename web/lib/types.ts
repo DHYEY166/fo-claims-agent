@@ -24,7 +24,7 @@ export type EventKind =
   | "escalated_to_human" | "note" | (string & {});
 
 export interface TranscriptTurn { speaker: string; text: string; ts?: string }
-export interface EmailBody { from: string; to: string; subject: string; body: string }
+export interface EmailBody { from: string; to: string; cc?: string | string[] | null; subject: string; body: string }
 
 export interface CaseEvent {
   id: string;

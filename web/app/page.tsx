@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronRight, Inbox } from "lucide-react";
 import { api } from "@/lib/api";
 import { useLive } from "@/lib/useLive";
+import { maskEmails } from "@/lib/demo";
 import type { Case } from "@/lib/types";
 import { LiveDot, SimBadge, StatusPill, TypeIcon, cx, money, relTime, typeLabel, useNow } from "@/components/ui";
 
@@ -73,13 +74,13 @@ export default function CasesPage() {
                   <TypeIcon type={c.type} />
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="truncate text-sm font-medium text-zinc-900">{c.title}</span>
+                      <span className="truncate text-sm font-medium text-zinc-900">{maskEmails(c.title)}</span>
                       {c.mock && <SimBadge />}
                     </div>
                     <div className="text-xs text-zinc-500">{typeLabel(c.type)}</div>
                   </div>
                 </div>
-                <span className="truncate text-sm text-zinc-700">{c.counterparty ?? "—"}</span>
+                <span className="truncate text-sm text-zinc-700">{maskEmails(c.counterparty ?? "—")}</span>
                 <span className="text-right text-sm font-medium tabular-nums text-zinc-900">{c.amount_cents ? money(c.amount_cents, c.currency) : "—"}</span>
                 <span><StatusPill status={c.status} /></span>
                 <span className="text-right text-xs tabular-nums text-zinc-500">{relTime(c.updated_at, now)}</span>

@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { ApiError, api } from "@/lib/api";
 import { useLive } from "@/lib/useLive";
+import { DEMO_HIDE_CALLS, isCallEvent, maskAddress, maskEmails } from "@/lib/demo";
 import type { CaseEvent, CaseWithEvents } from "@/lib/types";
 import { ConfidenceChip, LiveDot, SimBadge, StatusPill, TypeIcon, cx, describeAction, fmtTime, money, relTime, typeLabel, useNow } from "@/components/ui";
 
@@ -54,6 +55,7 @@ export default function CaseDetail({ params }: { params: Promise<{ id: string }>
   if (error) return <div className="text-sm text-rose-600">Couldn&apos;t load case: {error} <Link className="ml-2 text-accent-600" href="/">Back</Link></div>;
   if (!data) return <div className="flex items-center gap-2 text-sm text-zinc-500"><Loader2 className="h-4 w-4 animate-spin" /> Loading case…</div>;
 
+  const visible = DEMO_HIDE_CALLS ? data.events.filter((e) => !isCallEvent(e)) : data.events;
   const pending = data.events.filter((e) => e.kind === "approval_requested" && e.pending);
   const escalation = [...data.events].reverse().find((e) => e.kind === "escalated_to_human");
   const working = ["new", "classified", "gathering_evidence", "contacting"].includes(data.status);
@@ -69,7 +71,7 @@ export default function CaseDetail({ params }: { params: Promise<{ id: string }>
         <TypeIcon type={data.type} />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="truncate text-2xl font-semibold tracking-tight">{data.title}</h1>
+            <h1 className="truncate text-2xl font-semibold tracking-tight">{maskEmails(data.title)}</h1>
             {data.mock && <SimBadge />}
           </div>
           <div className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-zinc-500">
@@ -90,7 +92,7 @@ export default function CaseDetail({ params }: { params: Promise<{ id: string }>
                 <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
                 <div className="min-w-0">
                   <div className="text-sm font-semibold text-amber-900">{escalation.title}</div>
-                  {escalation.detail && <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-amber-900/80">{escalation.detail}</p>}
+                  {escalation.detail && <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-amber-900/80">{maskEmails(escalation.detail)}</p>}
                   <p className="mt-2 text-xs font-medium text-amber-700">The agent stopped before contacting anyone and handed this to a human EA.</p>
                 </div>
               </div>
@@ -101,8 +103,8 @@ export default function CaseDetail({ params }: { params: Promise<{ id: string }>
           <section className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
             <h2 className="mb-4 text-sm font-semibold text-zinc-900">Timeline</h2>
             <ol className="relative">
-              {data.events.map((e, i) => (
-                <TimelineItem key={e.id} e={e} last={i === data.events.length - 1 && !working} fresh={fresh.has(e.id)} now={now} />
+              {visible.map((e, i) => (
+                <TimelineItem key={e.id} e={e} last={i === visible.length - 1 && !working} fresh={fresh.has(e.id)} now={now} />
               ))}
               {working && (
                 <li className="flex items-center gap-3 pl-0.5 text-sm text-zinc-400">
@@ -124,7 +126,7 @@ export default function CaseDetail({ params }: { params: Promise<{ id: string }>
               <Row k="Amount"><span className="tabular-nums">{data.amount_cents ? money(data.amount_cents, data.currency) : "—"}</span></Row>
               <Row k="Opened">{fmtTime(data.created_at)}</Row>
               <Row k="Updated">{relTime(data.updated_at, now)}</Row>
-              <Row k="Events"><span className="tabular-nums">{data.events.length}</span></Row>
+              <Row k="Events"><span className="tabular-nums">{visible.length}</span></Row>
             </dl>
           </div>
           <div className="rounded-xl border border-zinc-200 bg-white p-4 text-xs leading-relaxed text-zinc-500 shadow-sm">
@@ -181,17 +183,17 @@ function ApprovalCard({ caseId, event, onConflict }: { caseId: string; event: Ca
         <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3">
           <div className="flex items-start gap-3">
             <ActionIcon className="mt-0.5 h-4 w-4 shrink-0 text-accent-600" />
-            <p className="text-[15px] font-medium leading-snug text-zinc-900">{a?.headline ?? event.title}</p>
+            <p className="text-[15px] font-medium leading-snug text-zinc-900">{maskEmails(a?.headline ?? event.title)}</p>
           </div>
           {(a?.to || a?.spend_cents != null) && (
             <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 pl-7 text-xs text-zinc-500">
-              {a?.to && <span>To <span className="font-mono text-zinc-700">{a.to}</span></span>}
+              {a?.to && <span>To <span className="font-medium text-zinc-700">{maskAddress(a.to)}</span></span>}
               {a?.spend_cents != null && <span>Spend <span className="font-medium tabular-nums text-zinc-700">{money(a.spend_cents)}</span></span>}
             </div>
           )}
-          {a?.message && <p className="mt-2 border-l-2 border-zinc-200 pl-3 ml-7 text-sm leading-relaxed text-zinc-600">{a.message}</p>}
+          {a?.message && <p className="mt-2 border-l-2 border-zinc-200 pl-3 ml-7 text-sm leading-relaxed text-zinc-600">{maskEmails(a.message)}</p>}
         </div>
-        {event.detail && <p className="text-sm leading-relaxed text-zinc-600">{event.detail}</p>}
+        {event.detail && <p className="text-sm leading-relaxed text-zinc-600">{maskEmails(event.detail)}</p>}
         {err && <p className="text-sm text-rose-600">{err}</p>}
         {info && <p className="rounded-md bg-zinc-100 px-3 py-2 text-sm text-zinc-600">{info}</p>}
         <div className="flex items-center gap-2 pt-1">
@@ -216,7 +218,8 @@ function TimelineItem({ e, last, fresh, now }: { e: CaseEvent; last: boolean; fr
   const prefixed = /^\[MOCK\]\s*/i.test(e.title);
   const isMock = e.mock === true || prefixed;
   const title = isMock ? e.title.replace(/^\[MOCK\]\s*/i, "") : e.title;
-  const expandable = !!(e.transcript?.length || e.email);
+  const showTranscript = !!e.transcript?.length && !DEMO_HIDE_CALLS;
+  const expandable = showTranscript || !!e.email;
   const [open, setOpen] = useState(false);
   return (
     <li data-event-id={e.id} data-kind={e.kind} className={cx("relative flex gap-3 pb-5", fresh && "animate-fade-in")}>
@@ -226,7 +229,7 @@ function TimelineItem({ e, last, fresh, now }: { e: CaseEvent; last: boolean; fr
       </span>
       <div className="min-w-0 flex-1 pt-0.5">
         <div className="flex items-baseline gap-2">
-          <span className="text-sm font-medium text-zinc-900">{title}</span>
+          <span className="text-sm font-medium text-zinc-900">{maskEmails(title)}</span>
           {isMock && <MockBadge />}
           {e.kind === "approval_requested" && e.pending && <span className="rounded-full bg-amber-50 px-1.5 py-px text-[11px] font-medium text-amber-700 ring-1 ring-amber-200">pending</span>}
           <span className="ml-auto shrink-0 text-xs tabular-nums text-zinc-400" title={fmtTime(e.ts)}>{relTime(e.ts, now)}</span>
@@ -235,7 +238,7 @@ function TimelineItem({ e, last, fresh, now }: { e: CaseEvent; last: boolean; fr
           {e.actor === "fo" ? <Bot className="h-3 w-3" /> : null}{ACTOR[e.actor] ?? e.actor}
         </div>
         {e.pending ? <p className="mt-1.5 text-sm text-amber-700">Waiting for your decision — see the approval card above.</p>
-          : e.detail && !(e.evidence && Object.keys(e.evidence).length) && <p className={cx("mt-1.5 whitespace-pre-wrap text-sm leading-relaxed", e.kind === "escalated_to_human" ? "rounded-md bg-amber-50 px-3 py-2 text-amber-900" : "text-zinc-600")}>{prettyDetail(e.detail)}</p>}
+          : e.detail && !(e.evidence && Object.keys(e.evidence).length) && <p className={cx("mt-1.5 whitespace-pre-wrap text-sm leading-relaxed", e.kind === "escalated_to_human" ? "rounded-md bg-amber-50 px-3 py-2 text-amber-900" : "text-zinc-600")}>{maskEmails(prettyDetail(e.detail))}</p>}
         {e.evidence && typeof e.evidence === "object" && Object.keys(e.evidence).length > 0 && (
           <dl className="mt-2 grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-1 rounded-lg border border-zinc-200 bg-zinc-50/70 px-3 py-2 text-xs">
             {Object.entries(e.evidence).map(([k2, v]) => (
@@ -248,10 +251,10 @@ function TimelineItem({ e, last, fresh, now }: { e: CaseEvent; last: boolean; fr
           <button onClick={() => setOpen((o) => !o)} data-expand
             className="mt-2 inline-flex items-center gap-1 rounded-md border border-zinc-200 px-2 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50">
             <ChevronDown className={cx("h-3.5 w-3.5 transition", open && "rotate-180")} />
-            {open ? "Hide" : "Show"} {e.transcript?.length ? `transcript · ${e.transcript.length} turns` : "email"}
+            {open ? "Hide" : "Show"} {showTranscript ? `transcript · ${e.transcript!.length} turns` : "email"}
           </button>
         )}
-        {open && e.transcript && (
+        {open && showTranscript && e.transcript && (
           <div className="mt-2 animate-fade-in space-y-2 rounded-lg border border-zinc-200 bg-zinc-50/70 p-3">
             {e.transcript.map((t, i) => {
               const fo = t.speaker.toLowerCase() === "fo";
@@ -259,7 +262,7 @@ function TimelineItem({ e, last, fresh, now }: { e: CaseEvent; last: boolean; fr
                 <div key={i} className={cx("flex gap-2", fo && "flex-row-reverse")}>
                   <div className={cx("max-w-[80%] rounded-lg px-3 py-2 text-sm leading-snug", fo ? "bg-accent-600 text-white" : "border border-zinc-200 bg-white text-zinc-800")}>
                     <div className={cx("mb-0.5 text-[11px] font-medium", fo ? "text-accent-100" : "text-zinc-500")}>{t.speaker}{t.ts && <span className="ml-1.5 font-normal opacity-70">{t.ts}</span>}</div>
-                    {t.text}
+                    {maskEmails(t.text)}
                   </div>
                 </div>
               );
@@ -269,11 +272,14 @@ function TimelineItem({ e, last, fresh, now }: { e: CaseEvent; last: boolean; fr
         {open && e.email && (
           <div className="mt-2 animate-fade-in overflow-hidden rounded-lg border border-zinc-200">
             <div className="space-y-0.5 border-b border-zinc-100 bg-zinc-50/70 px-3 py-2 text-xs">
-              <div><span className="inline-block w-14 text-zinc-400">From</span><span className="font-mono text-zinc-700">{e.email.from}</span></div>
-              <div><span className="inline-block w-14 text-zinc-400">To</span><span className="font-mono text-zinc-700">{e.email.to}</span></div>
-              <div><span className="inline-block w-14 text-zinc-400">Subject</span><span className="font-medium text-zinc-900">{e.email.subject}</span></div>
+              <div><span className="inline-block w-14 text-zinc-400">From</span><span className="font-mono text-zinc-700">{maskAddress(e.email.from)}</span></div>
+              <div><span className="inline-block w-14 text-zinc-400">To</span><span className="font-mono text-zinc-700">{maskAddress(e.email.to)}</span></div>
+              {e.email.cc && (Array.isArray(e.email.cc) ? e.email.cc.length > 0 : true) && (
+                <div><span className="inline-block w-14 text-zinc-400">Cc</span><span className="font-mono text-zinc-700">{(Array.isArray(e.email.cc) ? e.email.cc : [e.email.cc]).map(maskAddress).join(", ")}</span></div>
+              )}
+              <div><span className="inline-block w-14 text-zinc-400">Subject</span><span className="font-medium text-zinc-900">{maskEmails(e.email.subject)}</span></div>
             </div>
-            <pre className="whitespace-pre-wrap px-3 py-3 font-sans text-sm leading-relaxed text-zinc-700">{e.email.body}</pre>
+            <pre className="whitespace-pre-wrap px-3 py-3 font-sans text-sm leading-relaxed text-zinc-700">{maskEmails(e.email.body)}</pre>
           </div>
         )}
       </div>
