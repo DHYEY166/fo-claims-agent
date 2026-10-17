@@ -15,6 +15,8 @@ export interface Case {
   created_at: string;
   updated_at: string;
   confidence?: number | null; // 0..1
+  fo_sent?: boolean; // optional case-level send confirmation
+  held?: boolean;    // optional case-level "held by Fo" flag
   mock?: boolean;
 }
 
@@ -41,6 +43,9 @@ export interface CaseEvent {
   email?: EmailBody;
   fo_conversation_id?: string;
   proposed_email?: { to?: string | null; body?: string | null }; // real backend, on the "Fo replied" step
+  fo_sent?: boolean; // future backend signal: true = Fo confirmed the send, false = not sent
+  held?: boolean;    // future backend signal: Fo is holding the draft for the user's go-ahead
+  status?: string;   // future backend signal on a step, e.g. "escalated"
   reason?: string | string[]; // escalated_to_human: why the agent stopped (optional; may also be in the title after ":")
   trace?: Trace;
   mock?: boolean;

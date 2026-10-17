@@ -110,7 +110,8 @@ export default function CaseDetail({ params }: { params: Promise<{ id: string }>
             <h2 className="mb-4 text-sm font-semibold text-zinc-900">Timeline</h2>
             <ol className="relative">
               {visible.map((e, i) => (
-                <TimelineItem key={e.id} e={e} last={i === visible.length - 1 && !working} fresh={fresh.has(e.id)} now={now} />
+                <TimelineItem key={e.id} e={e} last={i === visible.length - 1 && !working} fresh={fresh.has(e.id)} now={now}
+                  caseCtx={{ status: data.status, fo_sent: data.fo_sent, held: data.held, reasons: escalation ? [escalation.title, escalation.detail ?? "", ...escReasons] : [] }} />
               ))}
               {working && (
                 <li className="flex items-center gap-3 pl-0.5 text-sm text-zinc-400">
@@ -165,9 +166,30 @@ function MockBadge() {
   );
 }
 
+const HELD_RE = /held for your go-ahead|go-ahead|go ahead|say go|waiting for your|before i send/i;
+
+/** Send state of a "Fo replied" step. Never "sent" unless a backend field confirms it. */
+function foSendState(e: CaseEvent, c: { status?: string; fo_sent?: boolean; held?: boolean; reasons?: string[] }): "sent" | "held" | "drafted" {
+  if (e.fo_sent === true || (e.fo_sent === undefined && c.fo_sent === true)) return "sent";
+  if (e.held === true || c.held === true) return "held";
+  if (e.fo_sent === false && HELD_RE.test(e.detail ?? "")) return "held";
+  if (HELD_RE.test(e.detail ?? "")) return "held";
+  const stepEscalated = e.status === "escalated" && HELD_RE.test([e.title, e.detail, ...(Array.isArray(e.reason) ? e.reason : [e.reason ?? ""])].join(" "));
+  const caseEscalated = c.status === "escalated" && HELD_RE.test((c.reasons ?? []).join(" "));
+  if (stepEscalated || caseEscalated) return "held";
+  return "drafted";
+}
+
+function HeldBadge() {
+  return (
+    <span title="Fo drafted the email and is holding it for your go-ahead" data-held-badge
+      className="rounded border border-amber-300 bg-amber-50 px-1.5 py-px font-mono text-[10px] font-semibold tracking-wider text-amber-800">HELD BY FO: waiting for go-ahead</span>
+  );
+}
+
 function LiveBadge() {
   return (
-    <span title="Real email sent (to the test bank inbox)" data-live-badge
+    <span title="Real Fo step (not simulated)" data-live-badge
       className="rounded border border-emerald-300 bg-emerald-50 px-1.5 py-px font-mono text-[10px] font-semibold tracking-wider text-emerald-800">LIVE</span>
   );
 }
@@ -233,7 +255,7 @@ function ApprovalCard({ caseId, event, onConflict }: { caseId: string; event: Ca
   );
 }
 
-function TimelineItem({ e, last, fresh, now }: { e: CaseEvent; last: boolean; fresh: boolean; now: number }) {
+function TimelineItem({ e, last, fresh, now, caseCtx }: { e: CaseEvent; last: boolean; fresh: boolean; now: number; caseCtx: Parameters<typeof foSendState>[1] }) {
   const k = KIND[e.kind] ?? KIND.note;
   // Simulated steps: backend flags them with mock:true and/or a "[MOCK] " title prefix.
   const prefixed = /^\[MOCK\]\s*/i.test(e.title);
@@ -243,6 +265,7 @@ function TimelineItem({ e, last, fresh, now }: { e: CaseEvent; last: boolean; fr
   // Real (FO_MOCK=0) path: the send is reported as a "Fo replied" note from get_fo_reply, not an email_sent event.
   const isFoReport = !isMock && e.actor === "fo" && (String(e.trace?.tool ?? "").includes("get_fo_reply") || e.title === "Fo replied");
   const isLiveSend = (/^email_sen[td]/.test(String(e.kind)) && !isMock) || isFoReport;
+  const sendState = isFoReport ? foSendState(e, caseCtx) : null;
   const showTranscript = !!e.transcript?.length && !DEMO_HIDE_CALLS;
   const expandable = showTranscript || !!e.email;
   const [open, setOpen] = useState(false);
@@ -257,6 +280,7 @@ function TimelineItem({ e, last, fresh, now }: { e: CaseEvent; last: boolean; fr
           <span className="text-sm font-medium text-zinc-900">{maskEmails(title)}</span>
           {isMock && <MockBadge />}
           {isLiveSend && <LiveBadge />}
+          {sendState === "held" && <HeldBadge />}
           {e.kind === "approval_requested" && e.pending && <span className="rounded-full bg-amber-50 px-1.5 py-px text-[11px] font-medium text-amber-700 ring-1 ring-amber-200">pending</span>}
           <span className="ml-auto shrink-0 text-xs tabular-nums text-zinc-400" title={fmtTime(e.ts)}>{relTime(e.ts, now)}</span>
         </div>
@@ -266,10 +290,17 @@ function TimelineItem({ e, last, fresh, now }: { e: CaseEvent; last: boolean; fr
         {isFoReport && (
           <div className="mt-1.5 rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2" data-fo-report>
             <div className="text-[11px] font-medium uppercase tracking-wider text-emerald-700">
-              Fo reported{e.proposed_email?.to ? <span className="normal-case tracking-normal text-emerald-700/80"> · sent to {maskAddress(e.proposed_email.to)}</span> : null}
+              Fo reported
             </div>
             <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-zinc-700">{e.detail ? maskEmails(e.detail) : "(no text in Fo's reply)"}</p>
           </div>
+        )}
+        {isFoReport && (
+          <p data-fo-send-state={sendState} className={cx("mt-1.5 text-sm", sendState === "held" ? "font-medium text-amber-800" : sendState === "sent" ? "text-emerald-800" : "text-zinc-600")}>
+            {sendState === "held" ? "Fo drafted it and is holding it for your go-ahead. Nothing has been sent yet."
+              : sendState === "sent" ? `Sent to ${maskAddress(e.proposed_email?.to) || "test bank inbox"}`
+              : `Fo drafted email to ${maskAddress(e.proposed_email?.to) || "test bank inbox"}`}
+          </p>
         )}
         {isFoReport ? null : e.pending ? <p className="mt-1.5 text-sm text-amber-700">Waiting for your decision — see the approval card above.</p>
           : e.detail && !(e.evidence && Object.keys(e.evidence).length) && <p className={cx("mt-1.5 whitespace-pre-wrap text-sm leading-relaxed", e.kind === "escalated_to_human" ? "rounded-md bg-amber-50 px-3 py-2 text-amber-900" : "text-zinc-600")}>{maskEmails(prettyDetail(e.detail))}</p>}
