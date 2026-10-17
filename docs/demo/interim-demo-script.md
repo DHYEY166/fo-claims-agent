@@ -43,7 +43,7 @@ Never say "emailing right now" or "sent" until the timeline shows a confirmed se
 Don't say the reply shows on the timeline. With no webhook tunnel tonight, it won't.
 
 **1:25 to 1:45. When it should not act** [Tab 2 for the escalated case, then Tab 1 Audit log]
-"If a claim is too vague, the agent doesn't act. It hands the case to a human. The same happens if a forwarded email hides an extra recipient, so that address never reaches Fo. And approving twice still sends exactly one email. Every step, including what Fo just did, lands in an audit log where each entry is chained to the one before, so a changed record shows."
+"If a claim is too vague, the agent doesn't act. It hands the case to a human. The same happens if a forwarded email hides an extra recipient, so that address never reaches Fo. And approving twice still sends exactly one email. Every outbound action, including the request to Fo, lands in an audit log where each entry is chained to the one before, so a changed record shows."
 
 **1:45 to 2:00. Next by Monday** [face cam]
 "Fo already chases lost packages. We're adding the case file, the evidence, and the guardrails. By Monday: follow-ups that keep going until the case is closed. Thanks."
@@ -58,7 +58,7 @@ Don't say the reply shows on the timeline. With no webhook tunnel tonight, it wo
 | Problem | Real need (10) | The everyday pain of disputes and claims |
 | Intake and classification | Agent craft (20) | Live Claude run: card dispute at 95%, Chase, $89.99, evidence fields (fo builder, classify.v2 on 76039ad); line citations on 7 of 8 fields and a code-computed filing deadline (fo builder, 76039ad, STREAMFLIX run) |
 | Approval gate | Trust by design (20) | Approve card, `Trust.authorize`, $0 spend shown; double approve gets 409 (fo trust qa, 9 of 9 API tests); 3-a-day send cap (fo trust qa, cb675b4, 3 passed, tests the cap function directly) |
-| Escalation and audit | Trust by design (20) | Vague claim at 0.10 escalated; injection flagged and escalated; `chain_ok: true` |
+| Escalation and audit | Trust by design (20) | Vague claim at 0.10 escalated; injection flagged and escalated; `chain_ok: true`; audit covers outbound actions up to `ask_fo_sent`, not follow-up, reply or resolved steps yet (fo trust qa, dry run on 7cf623e) |
 | Fo send | Gets real things done (25) | Real Fo through OAuth; PONG round trip passed in 12.9 s (fo builder, `:8020`); rehearsal email sent to the test bank inbox at 4:36 PM ET / 1:36 PM PT after Fo held its first-ever email for Dhyey's go-ahead; Fo reported "Sent" with a message id, no calls, nothing spent (fo trust qa, read-only get_fo_conversation); Dhyey confirmed receipt: Chase, $89.99 STREAMFLIX, card last 4 only, dated October 12, 2026, labeled a hackathon demo test |
 | Follow-ups until resolved | Pushes the frontier (25) | Planned for Monday; say "next", not "done" |
 
