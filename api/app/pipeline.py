@@ -203,6 +203,7 @@ def process(case_id: str) -> None:
         td = transaction_date(ex, row["raw_text"])
         if td:
             evidence["transaction_date"]["value"] = td.isoformat()
+            db.update_case(case_id, evidence=json.dumps(evidence))  # Fo message reads the code-resolved year
         emit(case_id, "evidence_gathered", f"{len(present)} of {len(evidence)} evidence fields found", "agent",
              detail="; ".join(f"{k}: {v['value']} ({v['citation']})" for k, v in present.items())
              + (f"; file by {dl}" if dl else ""),
