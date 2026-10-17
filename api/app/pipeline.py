@@ -115,10 +115,41 @@ def filing_deadline(ex: Extraction, text: str) -> Optional[str]:
     return (d + timedelta(days=days)).isoformat() if days and d else None
 
 
+_RAW_EMAIL = re.compile(r"[\w.+-]+@([\w-]+(?:\.[\w-]+)+)")
+_TRANSFER = re.compile(
+    r"\b(wire|zelle|venmo|western union|moneygram|gift ?cards?|bitcoin|btc|crypto|cash ?app)\b"
+    r"|\b(send|transfer|wire|pay)\s+(me\s+|us\s+|them\s+)?\$\s?\d[\d,]*(\.\d{1,2})?\s+(to|via|into)\b", re.I)
+
+
+_GENERIC = {"bank", "card", "cards", "inc", "llc", "co", "corp", "the", "services", "support", "customer"}
+
+
+def unexplained_signals(ex: Extraction, text: str) -> list[str]:
+    """Code-side check that doesn't depend on the model: email addresses or money-transfer instructions
+    in the raw text that the cleaned fields don't explain. An address is explained only when a part of
+    its domain exactly equals a word of the extracted counterparty or merchant (alerts@chase.com on a
+    Chase dispute), so look-alikes such as chase-escalation.example are not."""
+    words = {w for f in ("counterparty", "merchant") if getattr(ex, f).status.value == "present"
+             for w in re.findall(r"[a-z0-9]+", (getattr(ex, f).value or "").lower())
+             if len(w) >= 3 and w not in _GENERIC}
+    out = []
+    for m in _RAW_EMAIL.finditer(text):
+        parts = re.split(r"[.-]", m.group(1).lower())[:-1]
+        whole = re.sub(r"[^a-z0-9]", "", ".".join(m.group(1).lower().split(".")[:-1]))
+        if not (words & set(parts) and whole in words | {p for p in parts if p in words}):
+            out.append("unexplained email address")
+    if _TRANSFER.search(text):
+        out.append("money-transfer instruction")
+    return sorted(set(out))
+
+
 def route(ex: Extraction, tokens_used: int, text: str) -> Optional[str]:
     """Returns a reason to escalate, or None to proceed. All routing rules live here, not in the prompt."""
     if ex.contains_instructions:
         return "Forwarded content tried to instruct the agent"
+    signals = unexplained_signals(ex, text)
+    if signals:
+        return "Raw text has signals the claim fields don't explain: " + ", ".join(signals)
     if ex.case_type == CaseType.other:
         return "Out of scope (case type other)"
     if ex.confidence < config.CONFIDENCE_THRESHOLD:
