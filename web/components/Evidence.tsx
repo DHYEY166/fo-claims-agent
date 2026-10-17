@@ -51,7 +51,7 @@ export function EvidenceGrid({ evidence }: { evidence?: Record<string, EvidenceV
                   {maskEmails(r.value)}
                   {r.status === "ambiguous" && <span className="ml-1.5 text-[10px] font-medium uppercase tracking-wide text-amber-600">ambiguous</span>}
                 </button>
-                {open && r.citation && <q className="mt-0.5 block border-l-2 border-zinc-200 pl-2 italic text-zinc-400">{maskEmails(r.citation)}</q>}
+                {open && r.citation && <span className="mt-0.5 block border-l-2 border-zinc-200 pl-2 italic text-zinc-400">{maskEmails(r.citation)}</span>}
               </dd>
             </div>
           );
