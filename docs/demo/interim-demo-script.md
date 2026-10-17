@@ -8,7 +8,7 @@ Setup (open before 8 PM ET / 5 PM PT, restart nothing):
 - Never open the test bank's mail app on screen, because it shows the real address. Show Fo's side on the case timeline only. On screen and aloud it is only "test bank inbox".
 
 What's real: Claude classification, the approval gate, `Trust.authorize`, double-approve blocking, escalation, redaction at intake, the hash-chained audit log, and on Tab 1 the Fo email to the test bank inbox.
-Sends left tonight: exactly 2 under the 3-a-day cap. One is the 7:30 PM ET / 4:30 PM PT rehearsal and one is on stage. Approve once only.
+Sends: the rehearsal is done (1 of 3 used today, counted by UTC date; the cap resets at 8:00 PM ET / 5:00 PM PT). That leaves at least 2 for the stage. Approve once only.
 On Tab 1, start a fresh case. Don't open either leftover case on `:3101`: `case_d26856e7c2` is an old MOCK case with a fake send, and `case_cbd0d1cf1a` is the rehearsal case, which now shows a send that a human recorded after the fact. The simulation cases are already deleted. Never open the Fo conversation itself or the mail app on stage.
 
 Spoken length: about 290 words at a calm pace.
