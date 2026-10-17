@@ -21,7 +21,14 @@ def mask(value: Any) -> Any:
     for s in secret_values():
         value = value.replace(s, "[REDACTED_TOKEN]")
     real = real_target()
-    return re.sub(re.escape(real), LABEL, value, flags=re.I) if real else value
+    if not real:
+        return value
+    value = re.sub(re.escape(real), LABEL, value, flags=re.I)
+    local = real.split("@")[0]
+    for part in sorted({local, local.split("+")[0]}, key=len, reverse=True):
+        if len(part) >= 4:
+            value = re.sub(re.escape(part), LABEL, value, flags=re.I)
+    return value
 
 
 def mask_deep(value: Any) -> Any:

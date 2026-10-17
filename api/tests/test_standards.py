@@ -63,6 +63,8 @@ def test_test_bank_address_is_masked(monkeypatch):
     monkeypatch.setattr(config, "FO_TEST_TARGET", "someone+x@example.org")
     assert masking.mask("to SomeOne+X@example.org now") == "to test bank inbox now"
     assert masking.mask_deep({"a": ["someone+x@example.org"]}) == {"a": ["test bank inbox"]}
+    assert masking.mask("Fo wrote to SOMEONE+x at the bank") == "Fo wrote to test bank inbox at the bank"
+    assert masking.mask("inbox someone, plus tag") == "inbox test bank inbox, plus tag"
     assert tb.outbound_target() == tb.TEST_BANK_ALIAS
     assert tb.resolve(tb.TEST_BANK_ALIAS) == "someone+x@example.org"
     assert tb.resolve("ceo@realbank.com") is None
