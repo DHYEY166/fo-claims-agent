@@ -236,7 +236,17 @@ def no_resend(what: str) -> str:
 
 
 def _clean(v: Any, n: int = 40) -> Optional[str]:
-    return _SAFE.sub("", str(v))[:n].strip() if v not in (None, "") else None
+    """Strip to safe characters and cap at n. A cut that would land mid-word backs up to the last space,
+    unless there is none (IDs, dates and card digits are hard-cut)."""
+    if v in (None, ""):
+        return None
+    s = _SAFE.sub("", str(v)).strip()
+    if len(s) <= n:
+        return s
+    cut = s[:n]
+    if s[n] != " " and cut[-1] != " " and " " in cut:
+        cut = cut[:cut.rindex(" ")]
+    return cut.strip()
 
 
 _PARTY_BY_TYPE = {"card_dispute": "The bank", "insurance_claim": "The insurer", "package_claim": "The carrier"}
