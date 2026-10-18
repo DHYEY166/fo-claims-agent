@@ -1,5 +1,8 @@
 """Standard Webhooks verification for Fo deliveries (https://wajo.ai/docs/webhooks.md)."""
-import base64, hashlib, hmac, time
+import base64
+import hashlib
+import hmac
+import time
 
 TOLERANCE_S = 300
 
