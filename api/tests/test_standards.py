@@ -157,7 +157,8 @@ def test_fo_send_outcome_held_about_other_actions_is_still_sent():
     # is about calls and spend, not the email, so it must not turn a clear "Sent." into unclear.
     from app import pipeline
     reply = ("Sent. One email to test bank inbox with the dispute details ($89.99, STREAMFLIX, card ending 1111, "
-             "Oct 14, ref SFX-1018-8264) asking for receipt confirmation and a case number. Message ID: wajo-MSGID."
+             "Oct 14, ref SFX-1018-8264) asking for receipt confirmation and a case number. "
+             "Message ID: MSG-ID-PLACEHOLDER."
              "\n\nTwo notes: it went out in my voice as your assistant (\"on behalf of my user, the cardholder\") "
              "since I can't write as someone I'm not, and I held everything else \u2014 no calls, texts, or spend. "
              "Also heads up: that same address got a similar test email about an hour ago from an earlier run "
@@ -168,6 +169,16 @@ def test_fo_send_outcome_held_about_other_actions_is_still_sent():
     assert pipeline.fo_send_outcome("I've held this one.") == "held"
     assert pipeline.fo_send_outcome("Sent it. I held the email copy for your go-ahead too.") == "unclear"
     assert pipeline.fo_send_outcome("I held everything else.") == "unclear"
+
+
+def test_fo_request_asks_fo_to_write_as_the_assistant(monkeypatch):
+    # Fo refuses to impersonate the cardholder, which cost a redraft on the Oct 18 live take.
+    from app import db, pipeline
+    monkeypatch.setattr(db, "get_case_row", lambda _id: {"evidence": "{}"})
+    case = {"id": "case_x", "type": "card_dispute", "amount_cents": 8999, "counterparty": "STREAMFLIX"}
+    req = pipeline.build_fo_request(case, "test bank inbox")
+    assert "write as the customer's assistant, on their behalf" in req
+    assert "act as the customer" not in req
 
 
 def test_post_send_steps_are_audited(tmp_path, monkeypatch):
