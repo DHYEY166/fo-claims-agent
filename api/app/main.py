@@ -132,7 +132,7 @@ def approve(case_id: str, body: ApprovalIn, request: Request):
         raise HTTPException(404, "case not found")
     try:
         return pipeline.decide(case_id, body.event_id, body.decision, body.note)
-    except ValueError as e:
+    except (ValueError, pipeline.tb.ApprovalConflict) as e:
         raise HTTPException(409, str(e))
 
 

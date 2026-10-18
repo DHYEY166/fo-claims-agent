@@ -142,6 +142,14 @@ def list_events(case_id) -> list:
         return [event_out(r) for r in c.execute("SELECT * FROM events WHERE case_id=? ORDER BY ts", (case_id,))]
 
 
+def pending_approvals_before(ts: str) -> list:
+    """Approval cards still showing (pending) that were created at or before ts."""
+    with conn() as c:
+        return [event_out(r) for r in c.execute(
+            "SELECT * FROM events WHERE kind='approval_requested' AND json_extract(payload,'$.pending')=1 "
+            "AND ts<=? ORDER BY ts", (ts,))]
+
+
 def due_follow_ups(ts: str) -> list:
     with conn() as c:
         return [case_out(r) for r in c.execute(
