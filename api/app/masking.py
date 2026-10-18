@@ -41,8 +41,13 @@ def mask_deep(value: Any) -> Any:
 
 class MaskFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
-        record.msg = mask(record.getMessage())
-        record.args = ()
+        # Mask the template and each argument in place. Keeping args intact matters: uvicorn's access
+        # formatter unpacks record.args, so clearing them broke the access log.
+        record.msg = mask(record.msg)
+        if isinstance(record.args, tuple):
+            record.args = tuple(mask(a) for a in record.args)
+        elif isinstance(record.args, dict):
+            record.args = {k: mask(v) for k, v in record.args.items()}
         return True
 
 
