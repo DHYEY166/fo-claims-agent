@@ -42,7 +42,7 @@ export default function CasesPage() {
       <div className="flex items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Cases</h1>
-          <p className="mt-1 text-sm text-zinc-500">Disputes and claims your agent is working — it follows up until they&apos;re resolved.</p>
+          <p className="mt-1 text-sm text-zinc-500">Disputes and claims your agent is working. It tracks each case to resolution and asks before every follow-up.</p>
         </div>
         <LiveDot mode={mode} />
       </div>
