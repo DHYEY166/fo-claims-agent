@@ -54,7 +54,7 @@ flowchart LR
 
 The agent drafts and reasons, but code decides what is allowed to leave the computer. Every rule below lives in `trust/` and `api/app/pipeline.py`, not in a prompt, and each one has a test.
 
-**You approve every outbound action.** Nothing goes to Fo until you click Approve on the exact email the agent drafted. The approval is tied to a hash of the case, the action, the recipient and the message text. If any of those change after you approve, the send is refused (`action_changed_after_approval`). An approval works once (a second use gets 409) and expires after 15 minutes. Reject stops the case before Fo is ever contacted.
+**You approve every outbound action.** Nothing goes to Fo until you click Approve on the exact email the agent drafted. The approval is tied to a hash of the case, the action, the recipient and the message text. If any of those change after you approve, the send is refused (`action_changed_after_approval`). An approval works once (a second use gets 409) and expires after 15 minutes. A card nobody approves in time closes, nothing is sent from it, and the case comes back to you. A late click gets 409. Reject stops the case before Fo is ever contacted.
 
 **Email only, to one allowed inbox.** For the demo the agent can email exactly one address: our own private test bank inbox. Phone calls and every other recipient are blocked by the trust gate, and the block is written to the audit log. The real address is kept only in `.env`. The dashboard, the database, the audit log and the API all show an alias instead. The address is swapped in only in the one outbound message to Fo.
 
@@ -78,7 +78,8 @@ The agent drafts and reasons, but code decides what is allowed to leave the comp
 - Fo asks a question.
 - Fo says it is holding the email for a go-ahead.
 - The daily cap is reached.
-- An extracted value doesn't match the line it cites (amounts are compared as numbers, so "$780" matches 780.00).
+- An approval card expires before anyone clicks it.
+- An extracted value doesn't match the line it cites, or a citation covers more than 3 lines in total. An amount must equal a money amount on the cited line to the cent, so "$780" matches 780.00 but "order 780" does not.
 - You reject the follow-up, or the bank stays quiet after it.
 
 The follow-up timer never sends anything on its own. It only drafts the one follow-up, which needs your approval like any other send and counts toward the daily cap of 3.
@@ -121,7 +122,7 @@ Run `npm run dev` without `NEXT_PUBLIC_API_BASE` to get the dashboard's built-in
 
 ## How do I run the tests?
 
-132 automated tests pass in CI (mock mode), including end-to-end mock runs of package claims (damaged, lost and late), insurance claims (renters and travel) and edge cases such as injection text and stray money-transfer requests. These are the same commands the pipeline runs, from the repo root:
+226 automated tests pass in CI (mock mode), including end-to-end mock runs of package claims (damaged, lost and late), insurance claims (renters and travel) and edge cases such as injection text and stray money-transfer requests. These are the same commands the pipeline runs, from the repo root:
 
 ```bash
 pip install -r api/requirements.txt -r tests/trust/requirements.txt pytest flake8 mypy
@@ -161,8 +162,6 @@ Fixed in code on purpose: the Claude model is pinned in `api/app/config.py` (the
 - **Email only.** Phone calls are blocked by the trust gate, even though Fo can make them.
 - **One allowed recipient.** The agent only ever emails our own test bank inbox. It has never contacted a real bank, carrier or insurer.
 - **One follow-up, only with approval.** The agent never sends a follow-up by itself and drafts at most one per case.
-- **An expired approval leaves the case waiting.** If nobody clicks Approve within 15 minutes, the approval expires. A late click is refused and nothing is sent, but the case keeps showing as waiting for approval instead of coming back to you.
-- **The amount check can match the wrong number.** An amount counts as backed up if any number on the cited line equals it, so a line like "card ending 1200" would support 1200.00. The planned fix is to prefer numbers next to a currency sign.
 - **Resolution in the demo is simulated.** The live Fo send in the video is real, sent to the test inbox. The bank's reply and the resolution are simulated.
 - **Live case types.** The live Fo run in the video was a card dispute. Package and insurance claims pass the same path end to end in mock mode, but the video doesn't show them against live Fo.
 - **Reading Fo's reply.** The agent decides whether Fo sent the email by reading Fo's reply text. When the wording is unclear, it treats the email as unconfirmed and hands the case to a person instead of guessing.
