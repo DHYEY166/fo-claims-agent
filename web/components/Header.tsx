@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Plus } from "lucide-react";
-import { API_BASE, IS_MOCK } from "@/lib/api";
+import { API_BASE, DEMO_DEPLOY, IS_MOCK } from "@/lib/api";
 import { cx } from "./ui";
 
 export function Header() {
@@ -27,8 +27,8 @@ export function Header() {
         </nav>
         <div className="ml-auto flex items-center gap-3">
           {IS_MOCK && (
-            <span title="Data is served by the in-app mock layer. Set NEXT_PUBLIC_API_BASE to use the real backend."
-              className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1 font-mono text-[11px] font-semibold tracking-wider text-amber-800">MOCK DATA</span>
+            <span title={DEMO_DEPLOY ? "Public demo: all data is simulated in this app. Nothing reaches a real agent." : "Data is served by the in-app mock layer. Set NEXT_PUBLIC_API_BASE to use the real backend."}
+              className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1 font-mono text-[11px] font-semibold tracking-wider text-amber-800">{DEMO_DEPLOY ? "DEMO DATA" : "MOCK DATA"}</span>
           )}
           {!IS_MOCK && (
             <span title="Connected to the real backend" className="inline-flex items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-2 py-1 font-mono text-[11px] text-zinc-600">
@@ -41,6 +41,11 @@ export function Header() {
           </Link>
         </div>
       </div>
+      {DEMO_DEPLOY && (
+        <div className="border-t border-amber-200 bg-amber-50 px-6 py-1.5 text-center text-xs text-amber-900">
+          Demo data only. This page is not connected to a real agent: approving or rejecting changes simulated cases here, and no email, call or payment is ever made.
+        </div>
+      )}
     </header>
   );
 }
