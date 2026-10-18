@@ -109,6 +109,7 @@ def test_rejected_case_never_reaches_fo(tmp_path):
 def test_due_follow_up_escalates_and_is_audited(tmp_path):
     r = run("follow_up_due", tmp_path)
     assert r["status"] == "escalated"
-    assert "follow_up_due_escalated" in r["audit"]
+    assert "follow_up_drafted" in r["audit"] and "follow_up_due_escalated" in r["audit"]
+    assert r["audit"].count("follow_up_drafted") == 1  # one follow-up per case
     assert "ask_fo_sent" not in r["audit"]  # a follow-up never sends on its own
     assert r["chain_ok"] is True

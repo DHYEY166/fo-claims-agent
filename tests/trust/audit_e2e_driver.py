@@ -45,6 +45,9 @@ def main(mode):
         if mode == "follow_up_due":
             # Put the case where a sent-but-unanswered case sits, with the follow-up already due.
             db.update_case(cid, status="follow_up_scheduled", follow_up_at="2000-01-01T00:00:00+00:00")
+            pipeline.run_follow_ups()  # first expiry: drafts the one follow-up for approval, sends nothing
+            # Then the bank stays quiet after that follow-up: the next expiry hands the case back.
+            db.update_case(cid, status="follow_up_scheduled", follow_up_at="2000-01-01T00:00:00+00:00")
             pipeline.run_follow_ups()
         else:
             ev = [e for e in case["events"] if e["kind"] == "approval_requested"][-1]

@@ -200,7 +200,7 @@ def test_post_send_steps_are_audited(tmp_path, monkeypatch):
     late = db.insert_case(type="card_dispute", title="t", status="follow_up_scheduled",
                           follow_up_at=(datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat())["id"]
     pipeline.run_follow_ups()
-    assert ("log", late, "follow_up_due_escalated") in logged
+    assert ("log", late, "follow_up_drafted") in logged  # first expiry drafts, it doesn't escalate
 
 
 def test_log_filter_masks_args_and_keeps_uvicorn_access_log_working(monkeypatch):
