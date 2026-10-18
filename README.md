@@ -44,10 +44,45 @@ flowchart LR
 - `web/`: Next.js dashboard (case list, new claim, case timeline with approval cards, audit log). It runs against the real backend or an in-memory mock that shows a MOCK DATA badge.
 - `tests/`: trust and safety tests. `docs/`: the trust spec, demo script and story docs.
 
-## Trust and safety
+## Trust by design
 
-<!-- TRUST_SECTION: written by fo trust qa. Paste their section here exactly as worded. -->
-_This section comes from our trust and QA work and is being finalized. See [docs/TRUST_SPEC.md](docs/TRUST_SPEC.md) for now._
+The agent drafts and reasons, but code decides what is allowed to leave the computer. Every rule below lives in `trust/` and `api/app/pipeline.py`, not in a prompt, and each one has a test.
+
+**You approve every outbound action.** Nothing goes to Fo until you click Approve on the exact email the agent drafted. The approval is tied to a hash of the case, the action, the recipient and the message text. If any of those change after you approve, the send is refused (`action_changed_after_approval`). An approval works once (a second use gets 409) and expires after 15 minutes. Reject stops the case before Fo is ever contacted.
+
+**Email only, to one allowed inbox.** For the demo the agent can email exactly one address: our own private test bank inbox. Phone calls and every other recipient are blocked by the trust gate, and the block is written to the audit log. The real address is kept only in `.env`. The dashboard, the database, the audit log and the API all show an alias instead. The address is swapped in only in the one outbound message to Fo.
+
+**No money moves.** The spend limit is \$0, so any action that tries to spend is blocked. The agent never asks Fo for a single-use card. A separate hard cap allows at most 3 real emails to the test bank inbox per UTC day, and each approved case gets one send with no automatic retries.
+
+**An audit log where each entry is chained to the one before it.** Every outbound action is a row in an append-only SQLite log: intake, classification, approval requested, your decision, the send authorization, the Fo request, follow-up scheduled, reply received and resolution. Blocks and escalations get rows too. Each row is hash-chained to the one before it. The database refuses edits and deletes, and if someone gets around that and changes a row, the chain check fails. An end-to-end test (`tests/trust/test_audit_chain_e2e.py`) runs a real case through the API and confirms all of this. The one step without a row is evidence gathering, which is internal and sends nothing.
+
+**Forwarded emails are treated as data, not instructions.** Pasted or forwarded text reaches the model wrapped as untrusted input. If the model reports that the text tries to instruct the agent, the case goes to a human. Code also checks the raw text, without relying on the model, for email addresses or money-transfer instructions (wire, Zelle, gift cards, crypto and similar) that the claim doesn't explain, and escalates if it finds any. After Fo's turn, the agent checks Fo's conversation for any recipient besides the allowed inbox. If it finds one, the case is marked failed.
+
+**PII stays out of storage.** Card numbers, SSNs and API keys are redacted before the claim text is saved. Email addresses are masked in the database, the API and server logs. Only the last 4 digits of a card are kept.
+
+**Locked to this computer.** Fo sign-in and the approve and reject routes only answer a browser on this machine. Requests through a proxy or tunnel (forwarded headers, or a Host other than localhost) get 403.
+
+**Signed webhooks.** Fo webhooks are verified with Standard Webhooks HMAC signatures, which allow 5 minutes of clock skew. Duplicate webhook ids are ignored, and an unsigned or badly signed request gets 401.
+
+**When unsure, it hands off to a person.** The case goes to a human, not to the bank, in any of these situations:
+- Classifier confidence is below 0.7.
+- The claim type is out of scope.
+- The filing window has closed.
+- The case passed its model token budget.
+- Fo asks a question.
+- Fo says it is holding the email for a go-ahead.
+- The daily cap is reached.
+- A follow-up comes due with no reply.
+
+A follow-up never contacts the bank on its own. Another send needs another approval.
+
+**Honest failure states.** The dashboard says what actually happened:
+- If Fo's reply doesn't clearly say the email went out, the case says "Couldn't confirm Fo sent the email" and no follow-up is scheduled.
+- If Fo is still working after 10 minutes, the case escalates.
+- If Fo's turn fails, the case is marked failed.
+- If a case sits in contacting for 15 minutes with no result, it escalates.
+
+Mock mode is always labeled MOCK.
 
 ## Setup
 

@@ -2,7 +2,7 @@
 
 When: quote-repost Shivani's (@shivanipod) 10:00 AM PT post on Mon Oct 19, between 1:00 and 1:15 PM ET (10:00 to 10:15 AM PT). Attach the final video to the quote-repost itself. Post the thread as replies to your own quote-repost right after.
 
-**Verify before posting:** none of us has confirmed the handles @wajo_ai, @hey__fo and @claudeai (and @AnthropicAI if added). Check each one on X on Monday before posting.
+**Verify before posting:** none of us has confirmed the handles @shivanipod, @wajo_ai, @hey__fo and @claudeai (and @AnthropicAI if added). Check each one on X on Monday before posting.
 
 Replace `[REPO]` with https://github.com/DHYEY166/fo-claims-agent before posting. Character counts are for the text as written, with an X link counted as 23.
 
