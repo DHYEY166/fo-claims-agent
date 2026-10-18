@@ -27,3 +27,8 @@ data/
 .vscode/
 .idea/
 *.log
+
+# Scripts and post drafts stay out of the repo (kept locally)
+docs/story/
+docs/demo/
+docs/video/*.md
