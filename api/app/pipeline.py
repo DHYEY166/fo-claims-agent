@@ -318,6 +318,11 @@ def _real_contact(case_id: str, action: dict, t0: float) -> None:
     if not real:
         raise tb.TargetNotAllowed("real sends go only to the test bank inbox")
     day = datetime.now(timezone.utc).date().isoformat()
+    if db.case_has_test_send(case_id):
+        emit(case_id, "escalated_to_human", "This case already had its one send", "agent",
+             detail="One email per case to the test bank inbox, and no automated retries. Nothing sent.")
+        set_status(case_id, "escalated")
+        return
     if not db.reserve_test_send(case_id, day, config.MAX_TEST_SENDS_PER_DAY):
         emit(case_id, "escalated_to_human", "Daily test-send cap reached", "agent",
              detail=f"{config.MAX_TEST_SENDS_PER_DAY} sends to the test bank inbox already today. Nothing sent.")

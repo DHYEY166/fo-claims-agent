@@ -36,7 +36,8 @@ def init():
           id TEXT PRIMARY KEY, case_id TEXT, ts TEXT, kind TEXT, title TEXT,
           detail TEXT, actor TEXT, payload TEXT);
         CREATE TABLE IF NOT EXISTS webhook_seen (id TEXT PRIMARY KEY, ts TEXT);
-        CREATE TABLE IF NOT EXISTS test_sends (id INTEGER PRIMARY KEY AUTOINCREMENT, case_id TEXT, ts TEXT);
+        CREATE TABLE IF NOT EXISTS test_sends (id INTEGER PRIMARY KEY AUTOINCREMENT, case_id TEXT UNIQUE, ts TEXT);
+        CREATE UNIQUE INDEX IF NOT EXISTS test_sends_case_id ON test_sends(case_id);
         """)
 
 
@@ -157,11 +158,22 @@ def mark_webhook_seen(wid: str) -> bool:
         return False
 
 
-def reserve_test_send(case_id: str, day_prefix: str, cap: int) -> bool:
-    """Atomically reserve one of today's real sends to the test bank. False once the cap is reached."""
+def case_has_test_send(case_id: str) -> bool:
     with _lock, conn() as c:
+        return c.execute("SELECT 1 FROM test_sends WHERE case_id = ?", (case_id,)).fetchone() is not None
+
+
+def reserve_test_send(case_id: str, day_prefix: str, cap: int) -> bool:
+    """Atomically reserve one real send to the test bank. False once today's cap is reached, or if this
+    case already had its one send (ever; UNIQUE(case_id) enforces it even under a race)."""
+    with _lock, conn() as c:
+        if c.execute("SELECT 1 FROM test_sends WHERE case_id = ?", (case_id,)).fetchone():
+            return False
         n = c.execute("SELECT COUNT(*) FROM test_sends WHERE ts LIKE ?", (day_prefix + "%",)).fetchone()[0]
         if n >= cap:
             return False
-        c.execute("INSERT INTO test_sends(case_id, ts) VALUES (?, ?)", (case_id, now()))
+        try:
+            c.execute("INSERT INTO test_sends(case_id, ts) VALUES (?, ?)", (case_id, now()))
+        except sqlite3.IntegrityError:
+            return False
         return True

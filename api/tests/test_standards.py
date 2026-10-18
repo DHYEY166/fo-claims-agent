@@ -75,7 +75,39 @@ def test_daily_send_cap(tmp_path, monkeypatch):
     from app import config, db
     monkeypatch.setattr(config, "DB_PATH", str(tmp_path / "c.db"))
     db.init()
-    assert [db.reserve_test_send("c", db.now()[:10], 3) for _ in range(5)] == [True, True, True, False, False]
+    day = db.now()[:10]
+    assert [db.reserve_test_send(f"c{i}", day, 3) for i in range(5)] == [True, True, True, False, False]
+
+
+def test_one_send_per_case_ever(tmp_path, monkeypatch):
+    import sqlite3
+    import pytest
+    from app import config, db
+    monkeypatch.setattr(config, "DB_PATH", str(tmp_path / "c.db"))
+    db.init()
+    day = db.now()[:10]
+    assert db.case_has_test_send("case_a") is False
+    assert db.reserve_test_send("case_a", day, 3) is True
+    assert db.case_has_test_send("case_a") is True
+    assert db.reserve_test_send("case_a", day, 3) is False
+    assert db.reserve_test_send("case_a", "2099-01-01", 3) is False
+    assert db.reserve_test_send("case_b", day, 3) is True
+    with pytest.raises(sqlite3.IntegrityError), db.conn() as c:
+        c.execute("INSERT INTO test_sends(case_id, ts) VALUES ('case_a', ?)", (db.now(),))
+
+
+def test_unique_index_added_to_existing_db(tmp_path, monkeypatch):
+    import sqlite3
+    from app import config, db
+    path = tmp_path / "old.db"
+    old = sqlite3.connect(path)
+    old.execute("CREATE TABLE test_sends (id INTEGER PRIMARY KEY AUTOINCREMENT, case_id TEXT, ts TEXT)")
+    old.execute("INSERT INTO test_sends(case_id, ts) VALUES ('case_old', '2026-10-18T14:42:32+00:00')")
+    old.commit()
+    old.close()
+    monkeypatch.setattr(config, "DB_PATH", str(path))
+    db.init()
+    assert db.reserve_test_send("case_old", "2026-10-19", 3) is False
 
 
 def test_code_flags_unexplained_emails_and_transfers():
