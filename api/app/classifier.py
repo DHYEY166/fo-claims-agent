@@ -60,8 +60,9 @@ MAX_CITE_SPAN = 3  # a range wider than this is not a citation, it is "somewhere
 
 def cited_lines(citation: str | None, n_lines: int) -> list[int] | None:
     """Parse "L3", "L1, L2" or "L1-L2" (parts may be mixed) into 1-based line numbers.
-    None if anything is malformed, a range runs backwards or spans more than MAX_CITE_SPAN lines,
-    or a cited line doesn't exist."""
+    None if anything is malformed, a range runs backwards, a cited line doesn't exist, or the citation
+    covers more than MAX_CITE_SPAN distinct lines in total (counted across every part, so "L1-L2, L5-L7"
+    can't get around the cap)."""
     parts = [p.strip() for p in (citation or "").split(",")]
     if not parts or any(not p for p in parts):
         return None
@@ -72,9 +73,11 @@ def cited_lines(citation: str | None, n_lines: int) -> list[int] | None:
             return None
         a = int(m.group(1))
         b = int(m.group(2)) if m.group(2) else a
-        if not (1 <= a <= b <= n_lines) or b - a + 1 > MAX_CITE_SPAN:
+        if not (1 <= a <= b <= n_lines):
             return None
         out.extend(n for n in range(a, b + 1) if n not in out)
+        if len(out) > MAX_CITE_SPAN:
+            return None
     return out
 
 

@@ -9,7 +9,7 @@ A = {"status": "absent"}
 
 
 @pytest.mark.parametrize("cite,want", [
-    ("L1-L3", [1, 2, 3]), ("L4-L6", [4, 5, 6]), ("L1-L2, L5-L7", [1, 2, 5, 6, 7]),
+    ("L1-L3", [1, 2, 3]), ("L4-L6", [4, 5, 6]), ("L1-L2, L5", [1, 2, 5]), ("L1-L3, L2", [1, 2, 3]),
     ("L1-L4", None), ("L1-L10", None), ("L2, L3-L8", None)])
 def test_range_width_is_capped(cite, want):
     assert MAX_CITE_SPAN == 3
@@ -25,3 +25,9 @@ def test_wide_range_fails_grounding():
     assert ground(e, text) == ["amount: citation 'L1-L10' is not an input line"]
     e.amount.citation = "L10"
     assert ground(e, text) == []
+
+
+@pytest.mark.parametrize("cite", ["L1-L2, L5-L7", "L1-L3, L4-L6, L7-L9", "L1, L3, L5, L7", "L1-L2, L9-L10"])
+def test_total_span_is_capped_across_ranges(cite):
+    """Each part is small, but together they cite more than MAX_CITE_SPAN lines."""
+    assert cited_lines(cite, 10) is None
