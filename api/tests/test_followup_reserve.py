@@ -79,3 +79,13 @@ def test_first_send_still_reserves_once(real_path):
     with pytest.raises(_Reached):
         pipeline._real_contact(cid, _action("first"), 0.0)
     assert _rows() == [cid] and len(real_path) == 1
+
+
+def test_follow_up_without_first_send_is_refused(real_path):
+    """No first email on record: the follow-up never reaches Fo and reserves no slot."""
+    cid = _case()
+    pipeline._real_contact(cid, _action("follow_up"), 0.0)
+    assert real_path == [] and _rows() == []
+    assert db.get_case(cid)["status"] == "escalated"
+    assert any(e["title"] == "Follow-up not sent" and "no first email" in (e["detail"] or "")
+               for e in db.list_events(cid))

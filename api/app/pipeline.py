@@ -351,6 +351,13 @@ def _real_contact(case_id: str, action: dict, t0: float) -> None:
         raise tb.TargetNotAllowed("real sends go only to the test bank inbox")
     day = datetime.now(timezone.utc).date().isoformat()
     if action.get("kind") == "follow_up":
+        if not db.case_has_test_send(case_id):
+            emit(case_id, "escalated_to_human", "Follow-up not sent", "agent",
+                 detail="There is no first email on record for this case, so there is nothing to follow up on. "
+                        "Nothing sent.")
+            tb.call("log", case_id, "system", "follow_up_refused", {"reason": "no_first_send"})
+            set_status(case_id, "escalated")
+            return
         if not db.reserve_test_send(follow_up_send_key(case_id), day, config.MAX_TEST_SENDS_PER_DAY):
             emit(case_id, "escalated_to_human", "Follow-up not sent", "agent",
                  detail="This case already had its one follow-up, or today's send cap is reached. Nothing sent.")
