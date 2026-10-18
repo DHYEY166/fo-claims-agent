@@ -48,7 +48,7 @@ Every outbound action, plus the follow-up, reply and resolution, goes in a hash-
 
 **6/**
 ```
-The video shows one real email sent through Fo over OAuth to our test bank inbox, using test data. Real sends are capped at 3 a day in code, and 71 automated tests pass in CI.
+The video shows one real email sent through Fo over OAuth to our test bank inbox, using test data. Real sends are capped at 3 a day in code, and 78 automated tests pass in CI.
 
 Code: [REPO]
 
@@ -64,7 +64,7 @@ A like on the quote post helps us in community voting.
 | 3 | Line citations, code deadline, masking | Agent craft (20) | `classify.v2`, interim rubric map |
 | 4 | Approval card, escalations, double approve sends one | Trust by design (20) | `pipeline.route`, interim rubric map |
 | 5 | Sent only when Fo confirms, held and unclear states, audit chain | Trust by design (20) | `fo_send_outcome` tests, `trust/gate.py` |
-| 6 | One real email, 3 a day cap, 71 tests | Gets real things done (25) | `MAX_TEST_SENDS_PER_DAY = 3`, CI on f68d015 |
+| 6 | One real email, 3 a day cap, 78 tests | Gets real things done (25) | `MAX_TEST_SENDS_PER_DAY = 3`, CI on f68d015 |
 | Quote | Charged twice | Real need (10) | |
 
 Update the test count in post 6 if feature/trust-tests merges before posting. If the live take ends in HELD or UNCONFIRMED instead of sent, rewrite post 6 to match what the video shows.

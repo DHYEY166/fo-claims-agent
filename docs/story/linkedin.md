@@ -20,7 +20,7 @@ Here's how it works:
 
 The part I cared about most was trust. A vague claim, an email address nothing in the claim explains, or a request to move money sends the case to a person instead. Approving twice still sends one email. Every outbound action, plus the follow-up, the reply and the resolution, goes into an audit log where each entry is chained to the one before it.
 
-The video shows one real email sent through Fo to a test inbox, using test data. Real sends are capped at 3 a day in code, and 71 automated tests pass in CI.
+The video shows one real email sent through Fo to a test inbox, using test data. Real sends are capped at 3 a day in code, and 78 automated tests pass in CI.
 
 Code: [REPO]
 
