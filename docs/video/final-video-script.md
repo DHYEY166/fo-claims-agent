@@ -25,16 +25,19 @@ This is a hackathon demo test.
 
 ## Storyboard
 
+The take ran at 10:42 to 10:44 AM ET / 7:42 to 7:44 AM PT on Oct 18 as `case_c132378e9a` and ended UNCONFIRMED: Fo's reply ran "now.Sent." together, so the agent didn't mark it sent and escalated. Dhyey checked by hand that the email arrived in the test inbox at 10:43 AM ET. fo lead decided (10:45 AM ET) to use this take as is, with no retake. The storyboard below matches it.
+
 | Time | On screen | Voiceover | Rubric |
 |---|---|---|---|
-| 0:00 to 0:03 | Cold open: the live take's frame of the case with the LIVE badge and "Sent to test bank inbox". Caption: "Charged twice? It files the dispute." | "Charged twice? This agent files the dispute for you." | Real need (10) |
+| 0:00 to 0:03 | Cold open: the live take's Approve click on `case_c132378e9a` (the approval card, then "You approved the action"). Caption: "Charged twice? It files the dispute." | "Charged twice? This agent files the dispute for you." | Real need (10) |
 | 0:03 to 0:10 | Case list on `:3101` | "Getting money back means forms, receipts and weeks of waiting, so most people give up." | Real need (10) |
-| 0:10 to 0:25 | Live take: New claim, paste the test email, case page fills in | "I paste the email. Claude turns it into a case: a card dispute with Chase, $89.99, the merchant, the date and the order number. Each field points to the line it came from, and the code works out the filing deadline. Card numbers are masked before anything is stored." | Agent craft (20) |
-| 0:25 to 0:37 | Live take: the Approve card (recipient shows as "test bank inbox", the message, $0 spend). Click Approve once. | "Nothing goes out until I approve it. I see who Fo will email, what it will say, and that it spends nothing." | Trust by design (20) |
-| 0:37 to 0:50 | Live take: Fo's step. Cut the wait with a visible jump cut and a caption with the real seconds waited. End on the confirmed step and "Follow-up scheduled". | "This is real Fo, connected over OAuth, emailing our test bank inbox." Then, only when the step shows sent: "Sent. If the bank doesn't answer, the agent flags the case for me, and any follow-up needs my approval again." | Gets real things done (25), Pushes the frontier (25) |
-| 0:50 to 1:05 | Mock clips, MOCK badge visible: a vague claim escalated to a human; the injection case flagged. | "When a claim is too vague, or a forwarded email tries to sneak in another recipient, it stops and hands the case to a person. Approving twice still sends one email." | Trust by design (20) |
-| 1:05 to 1:15 | Live `/audit` page on `:3101` with the chain check | "Every outbound action, plus the follow-up, the reply and the resolution, goes into an audit log where each entry is chained to the one before it." | Trust by design (20) |
-| 1:15 to 1:22 | End card: project name, "Built on Fo and Claude", repo link | "Fo already chases lost packages. We added the case file, the evidence and the guardrails. Built on Fo and Claude." | Agent craft (20) |
+| 0:10 to 0:25 | Live take: New claim, the test email filled in (scrambled typing cut), case page fills in | "I paste the email. Claude turns it into a case: a card dispute with Chase, $89.99, the merchant, the date and the order number. Each field points to the line it came from, and the code works out the filing deadline. Card numbers are masked before anything is stored." | Agent craft (20) |
+| 0:25 to 0:35 | Live take: the Approve card ("Nothing is sent until you approve"). Click Approve once. | "Nothing goes out until I approve it. I see who Fo will email, what it will say, and that it spends nothing." | Trust by design (20) |
+| 0:35 to 0:50 | Live take: jump cut over the 45 s wait (caption "45 seconds later"), "Fo replied" with LIVE and UNCONFIRMED, then "Couldn't confirm Fo sent the email" and "Escalated to human". Fo conversation id blurred; the "4417 / yesterday" sentence blurred. | "This is real Fo, connected over OAuth, emailing our test bank inbox. Fo answered, but the agent couldn't confirm the send from its reply, so it escalated to me instead of guessing." | Trust by design (20), Pushes the frontier (25) |
+| 0:50 to 0:54 | Text card | On screen only: "Checked by hand: the email arrived in the test inbox." | Gets real things done (25) |
+| 0:54 to 1:08 | Mock clips, MOCK badge visible: a vague claim escalated to a human; the injection case flagged. | "When a claim is too vague, or a forwarded email tries to sneak in another recipient, it stops and hands the case to a person. Approving twice still sends one email." | Trust by design (20) |
+| 1:08 to 1:16 | Live `/audit` page on `:3101` with the chain check | "Every outbound action, plus the follow-up, the reply and the resolution, goes into an audit log where each entry is chained to the one before it." | Trust by design (20) |
+| 1:16 to 1:24 | End card: project name, "Built on Fo and Claude", repo link | "If the bank doesn't answer, it flags the case for you, and any follow-up needs your approval again. Built on Fo and Claude." | Agent craft (20) |
 
 ## If the live step goes differently
 
