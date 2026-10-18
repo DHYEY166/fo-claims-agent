@@ -71,10 +71,10 @@ def test_concurrent_double_approve_sends_once():
     c = _wait(cid, {"awaiting_approval"})
     eid = _pending(c)["id"]
     with cf.ThreadPoolExecutor(8) as ex:
-        def approve(_):
+        def _approve(_):
             return httpx.post(f"{BASE}/api/cases/{cid}/approvals",
                               json={"event_id": eid, "decision": "approve"}).status_code
-        codes = list(ex.map(approve, range(8)))
+        codes = list(ex.map(_approve, range(8)))
     _wait(cid, {"resolved", "failed", "escalated"})
     c = httpx.get(f"{BASE}/api/cases/{cid}").json()
     sent = [e for e in c["events"] if e["kind"] == "email_sent"]

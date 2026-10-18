@@ -274,6 +274,11 @@ def decide(case_id: str, event_id: str, decision: str, note: Optional[str] = Non
         out = emit(case_id, "rejected", "You rejected the action", "human", detail=note)
         set_status(case_id, "rejected")
         return out
+    if ev["proposed_action"].get("kind") == "fo_go":
+        out = emit(case_id, "approved", "You gave Fo the go-ahead", "human", detail=note)
+        set_status(case_id, "contacting")
+        _bg(fo_go, case_id, ev["proposed_action"])
+        return out
     out = emit(case_id, "approved", "You approved the action", "human", detail=note)
     set_status(case_id, "contacting")
     _bg(contact, case_id, ev["proposed_action"])
@@ -324,6 +329,11 @@ def _real_contact(case_id: str, action: dict, t0: float) -> None:
     conv = first.get("conversationId")
     db.update_case(case_id, fo_conversation_id=conv)
     tb.call("log", case_id, "fo", "ask_fo_sent", {"conversationId": conv, "status": first.get("status")})
+    _finish_fo_turn(case_id, action, fo, first, conv, real, t0, go_allowed=True)
+
+
+def _finish_fo_turn(case_id: str, action: dict, fo: Any, first: dict, conv: Optional[str], real: str,
+                    t0: float, go_allowed: bool) -> None:
     polls: dict[str, Any] = {"n": 0, "errors": []}
 
     def get_reply() -> dict:
@@ -362,8 +372,41 @@ def _real_contact(case_id: str, action: dict, t0: float) -> None:
         return
     emit(case_id, "note", "Fo replied", "fo", detail=fo_text, fo_conversation_id=conv, trace=trace,
          proposed_email={"to": action.get("to"), "body": action["message"]})
+    outcome = fo_send_outcome(fo_text)
+    tb.call("log", case_id, "system", "fo_send_outcome", {"outcome": outcome, "conversationId": conv})
+    if outcome == "held":
+        emit(case_id, "escalated_to_human", "Fo is holding the email for your go-ahead", "fo",
+             detail="Fo drafted it but has not sent it. Nothing went out. No follow-up scheduled.",
+             fo_conversation_id=conv)
+        set_status(case_id, "escalated")
+        if go_allowed and conv:
+            _request_fo_go(case_id, action, conv)
+        return
+    if outcome == "unclear":
+        emit(case_id, "escalated_to_human", "Couldn't confirm Fo sent the email", "agent",
+             detail="Fo's reply doesn't say the email went out. Not assuming it did. No follow-up scheduled.",
+             fo_conversation_id=conv)
+        set_status(case_id, "escalated")
+        return
     set_status(case_id, "awaiting_reply")
     schedule_follow_up(case_id)
+
+
+_HELD = re.compile(r"go-ahead|go ahead|say go|\bheld\b|\bholding (it|the email|this)\b|waiting for your|"
+                   r"before i send|want me to send|shall i send|should i send|confirm (before|and i)", re.I)
+_SENT = re.compile(r"\b(i('ve| have)?|fo( has)?) (just )?sent\b|\b(email|message|it) (was|has been|is) sent\b|"
+                   r"\bsent (it|the email|the message|your email)\b|\bwent out\b|^\W*sent\b|\bmessage id\b",
+                   re.I | re.M)
+
+
+def fo_send_outcome(text: str) -> str:
+    """Code decides from Fo's own words. Both or neither matching is 'unclear': escalate, no go-ahead button."""
+    held, sent = bool(_HELD.search(text or "")), bool(_SENT.search(text or ""))
+    if held and not sent:
+        return "held"
+    if sent and not held:
+        return "sent"
+    return "unclear"
 
 
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
@@ -379,6 +422,43 @@ def _stray_recipients(fo: FoClient, conv: Optional[str], target: str, fo_text: s
         log.warning("readback failed: %s", e)
     found = {a.lower().rstrip(".") for a in _EMAIL.findall(blob)}
     return sorted(a for a in found if a != target.lower() and not a.endswith(_OWN_DOMAINS))
+
+
+def _go_prompt(conv: str) -> str:
+    return f"fo_go:{conv}"
+
+
+def _request_fo_go(case_id: str, action: dict, conv: str) -> None:
+    """Second human gate: one click sends exactly one 'go' to Fo in the same conversation. Offered once per case."""
+    go = {"kind": "fo_go", "channel": "email", "to": action["to"], "conversation_id": conv,
+          "message": FO_GO_MESSAGE, "spend_cents": 0}
+    go["approval_id"] = tb.call("request_approval", case_id, "email", action["to"], _go_prompt(conv), 0)
+    emit(case_id, "approval_requested", "Give Fo the go-ahead to send it?", "agent",
+         detail="One click sends one 'go' to Fo in this same conversation. Same email, nothing new is drafted.",
+         proposed_action=go, pending=True, fo_conversation_id=conv)
+    set_status(case_id, "awaiting_approval")
+
+
+FO_GO_MESSAGE = "go"
+
+
+def fo_go(case_id: str, action: dict) -> None:
+    t0 = time.monotonic()
+    try:
+        real = tb.resolve(action["to"])
+        conv = action.get("conversation_id")
+        if not real or not conv:
+            raise tb.TargetNotAllowed("go-ahead only for the test bank inbox conversation")
+        tb.call("authorize", action.get("approval_id"), case_id, "email", action["to"], _go_prompt(conv), 0)
+        fo = FoClient()
+        # Exactly one ask_fo on the existing conversation. No new conversation, no retry, no new send slot.
+        first = fo.ask(FO_GO_MESSAGE, conversation_id=conv)
+        tb.call("log", case_id, "fo", "ask_fo_go_sent", {"conversationId": conv, "status": first.get("status")})
+        _finish_fo_turn(case_id, action, fo, first, conv, real, t0, go_allowed=False)
+    except Exception as e:
+        log.exception("fo go failed")
+        emit(case_id, "note", "Fo go-ahead failed", "agent", detail=str(e)[:300])
+        set_status(case_id, "failed")
 
 
 def _mock_contact(case_id: str, action: dict, t0: float) -> None:
@@ -407,7 +487,8 @@ def schedule_follow_up(case_id: str) -> None:
     if c["status"] == "awaiting_reply":
         set_status(case_id, "follow_up_scheduled", follow_up_at=at)
         emit(case_id, "follow_up_scheduled", "Follow-up scheduled", "agent", detail=f"If no reply by {at}",
-             fo_conversation_id=c.get("fo_conversation_id"))
+             mock=bool(c.get("mock")), fo_conversation_id=c.get("fo_conversation_id"))
+        tb.call("log", case_id, "agent", "follow_up_scheduled", {"follow_up_at": at, "mock": bool(c.get("mock"))})
 
 
 def on_counterparty_reply(case_id: str, text: str, conv: Optional[str] = None, mock: bool = False,
@@ -418,11 +499,15 @@ def on_counterparty_reply(case_id: str, text: str, conv: Optional[str] = None, m
     conv = conv or c.get("fo_conversation_id")
     emit(case_id, "reply_received", "Reply received", "counterparty", detail=text, mock=mock,
          fo_conversation_id=conv)
+    # Audit the fact of the reply, not its text: replies can carry personal data.
+    tb.call("log", case_id, "counterparty", "reply_received", {"chars": len(text or ""), "mock": mock,
+                                                               "conversationId": conv})
     if c["status"] == "follow_up_scheduled":
         set_status(case_id, "awaiting_reply", follow_up_at=None)
     if resolve:
         set_status(case_id, "resolved")
-        emit(case_id, "resolved", "Case resolved", "agent", detail=text, fo_conversation_id=conv)
+        emit(case_id, "resolved", "Case resolved", "agent", detail=text, mock=mock, fo_conversation_id=conv)
+        tb.call("log", case_id, "agent", "resolved", {"mock": mock})
 
 
 def run_follow_ups() -> None:
@@ -431,12 +516,14 @@ def run_follow_ups() -> None:
         emit(c["id"], "note", "Follow-up due, no reply yet", "agent", fo_conversation_id=c.get("fo_conversation_id"),
              detail="No webhook or reply arrived. Escalating for a human decision; follow-up sends need approval.")
         set_status(c["id"], "escalated", follow_up_at=None)
+        tb.call("log", c["id"], "system", "follow_up_due_escalated", {})
     # Reconciliation for missed deliveries: a case stuck in contacting with no Fo result.
     stale = (now - timedelta(seconds=config.CONTACT_STALE_SECONDS)).isoformat()
     for c in db.stale_in_status("contacting", stale):
         emit(c["id"], "note", "No Fo result recorded", "agent", fo_conversation_id=c.get("fo_conversation_id"),
              detail=f"Still contacting after {config.CONTACT_STALE_SECONDS}s. Escalating instead of guessing.")
         set_status(c["id"], "escalated")
+        tb.call("log", c["id"], "system", "contact_stale_escalated", {})
 
 
 def scheduler_loop(stop: threading.Event, every: int = 5) -> None:

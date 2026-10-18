@@ -18,7 +18,8 @@ ANTHROPIC_API_KEY = env("ANTHROPIC_API_KEY")
 CLAUDE_MODEL = "claude-sonnet-4-5-20250929"  # pinned; change only with a new prompt version + eval
 WAJO_API_KEY = env("WAJO_API_KEY")
 FO_MCP_URL = env("FO_MCP_URL", "https://mcp.api.wajo.ai/fo")
-FO_MOCK = env("FO_MOCK", "1") == "1" or not WAJO_API_KEY
+# Mock unless FO_MOCK=0 and some Fo auth exists (wak_ key or an OAuth token from /oauth/start).
+FO_MOCK = env("FO_MOCK", "1") == "1" or not (WAJO_API_KEY or env("FO_OAUTH_ACCESS_TOKEN"))
 FO_WEBHOOK_SECRET = env("FO_WEBHOOK_SECRET")
 # Trust: every outbound Fo action is pinned to this test target. Never a real business.
 FO_TEST_TARGET = env("FO_TEST_TARGET")

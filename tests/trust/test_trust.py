@@ -32,8 +32,8 @@ def test_webhook_library_signed_payload_accepted_by_us():
     from datetime import datetime, timezone
     ts = datetime.now(tz=timezone.utc)
     sig = Webhook(SECRET).sign("msg_lib", ts, BODY.decode())
-    headers = {"webhook-id": "msg_lib", "webhook-timestamp": str(int(ts.timestamp())), "webhook-signature": sig}
-    verify(SECRET, headers, BODY)
+    verify(SECRET, {"webhook-id": "msg_lib", "webhook-timestamp": str(int(ts.timestamp())),
+                    "webhook-signature": sig}, BODY)
 
 
 @pytest.mark.parametrize("mutate,reason", [
@@ -147,8 +147,8 @@ def test_audit_append_only_and_tamper_detected(t):
 
 
 def test_audit_redacts_pii_and_keys(t):
-    text = "card 4111 1111 1111 1111 ssn 123-45-6789 key " + FAKE_WAK + " " + FAKE_ANT
-    t.log("c1", "user", "intake_received", {"text": text})
+    t.log("c1", "user", "intake_received",
+          {"text": "card 4111 1111 1111 1111 ssn 123-45-6789 key " + FAKE_WAK + " " + FAKE_ANT})
     detail = t.db.execute("SELECT detail FROM audit_log").fetchone()[0]
     for leaked in ["4111 1111 1111 1111", "123-45-6789", FAKE_WAK, FAKE_ANT]:
         assert leaked not in detail
@@ -187,8 +187,8 @@ def test_failed_turn_is_reported(status):
 
 
 def test_awaiting_user():
-    reply = {"status": "completed", "awaitingUser": True}
-    assert poll_fo_reply(lambda: reply, clock=_fake_clock(1))[0] == "needs_user_input"
+    result = poll_fo_reply(lambda: {"status": "completed", "awaitingUser": True}, clock=_fake_clock(1))
+    assert result[0] == "needs_user_input"
 
 
 def test_redact_keeps_surrounding_spacing():

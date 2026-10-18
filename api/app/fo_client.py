@@ -5,7 +5,7 @@ import json
 import time
 import logging
 import httpx
-from . import config
+from . import config, fo_oauth
 
 log = logging.getLogger("fo")
 
@@ -26,6 +26,10 @@ class FoClient:
         h = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
         if self.api_key:
             h["X-API-Key"] = self.api_key
+        else:
+            tok = fo_oauth.access_token()
+            if tok:
+                h["Authorization"] = f"Bearer {tok}"
         if self.session_id:
             h["Mcp-Session-Id"] = self.session_id
         return h
@@ -38,6 +42,8 @@ class FoClient:
             self._id += 1
             body["id"] = self._id
         r = self.http.post(self.url, headers=self._headers(), json=body)
+        if r.status_code == 401 and not self.api_key and fo_oauth.access_token(force_refresh=True):
+            r = self.http.post(self.url, headers=self._headers(), json=body)  # one retry after refresh
         if r.headers.get("mcp-session-id"):
             self.session_id = r.headers["mcp-session-id"]
         if notify:

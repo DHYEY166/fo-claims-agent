@@ -12,15 +12,15 @@ APPROVAL_TTL_S = 900
 
 
 class ApprovalRequired(Exception):
-    pass
+    ...
 
 
 class ApprovalConflict(Exception):
-    pass
+    ...
 
 
 class TargetNotAllowed(Exception):
-    pass
+    ...
 
 
 # Demo decision (Dhyey, Oct 17): email only. Phone targets and call actions are refused even if allowlisted.
@@ -29,7 +29,7 @@ CALL_ACTIONS = {"call", "phone_call", "start_fo_call"}
 
 
 class SpendLimitExceeded(Exception):
-    pass
+    ...
 
 
 def action_hash(case_id, action_type, target, prompt_text, amount_cents=0) -> str:

@@ -1,4 +1,5 @@
 import asyncio
+import html
 import json
 import logging
 import threading
@@ -6,9 +7,9 @@ from contextlib import asynccontextmanager
 from typing import Literal, Optional
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from pydantic import BaseModel
-from . import bus, config, db, masking, pipeline
+from . import bus, config, db, fo_oauth, masking, pipeline
 from .webhook_verify import InvalidSignature, verify
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
@@ -43,6 +44,61 @@ class ApprovalIn(BaseModel):
     note: Optional[str] = None
 
 
+_LOCAL_HOSTS = ("127.0.0.1", "::1", "localhost")
+_PROXY_HEADERS = ("x-forwarded-for", "x-forwarded-host", "x-real-ip", "forwarded", "cf-connecting-ip")
+
+
+def _host_name(host: str) -> str:
+    """Host header without its port: 'localhost:8020' -> 'localhost', '[::1]:8020' -> '::1'."""
+    host = host.strip().lower()
+    if host.startswith("["):
+        return host[1:host.find("]")] if "]" in host else host
+    return host.rsplit(":", 1)[0] if host.count(":") == 1 else host
+
+
+def _local_only(request: Request) -> None:
+    """Sign-in and approval routes answer only a browser on this computer. A tunnel or proxy makes every
+    request look like it came from 127.0.0.1, so a forwarded header or a non-local Host is refused too."""
+    if not request.client or request.client.host not in _LOCAL_HOSTS:
+        raise HTTPException(403, "only reachable from this computer")
+    if any(h in request.headers for h in _PROXY_HEADERS):
+        raise HTTPException(403, "only reachable from this computer, not through a proxy or tunnel")
+    if _host_name(request.headers.get("host", "")) not in _LOCAL_HOSTS:
+        raise HTTPException(403, "only reachable at localhost")
+
+
+@app.get("/oauth/start")
+def oauth_start(request: Request):
+    """Dhyey opens this and approves Fo access himself on Wajo's own sign-in page."""
+    _local_only(request)
+    redirect_uri = str(request.url_for("oauth_callback"))
+    try:
+        return RedirectResponse(fo_oauth.start(redirect_uri), status_code=302)
+    except (fo_oauth.OAuthError, Exception) as e:
+        raise HTTPException(502, f"could not start Fo sign-in: {type(e).__name__}")
+
+
+@app.get("/oauth/callback", name="oauth_callback")
+def oauth_callback(request: Request, code: Optional[str] = None, state: Optional[str] = None,
+                   error: Optional[str] = None):
+    _local_only(request)
+    if error or not code or not state:
+        msg = html.escape(masking.mask(error or "missing code"))
+        return HTMLResponse(f"<h3>Fo sign-in did not complete</h3><p>{msg}</p>",
+                            status_code=400)
+    try:
+        fo_oauth.callback(code, state)
+    except fo_oauth.OAuthError as e:
+        return HTMLResponse(f"<h3>Fo sign-in failed</h3><p>{html.escape(str(e))}</p>", status_code=400)
+    log.info("fo oauth connected")
+    return HTMLResponse("<h3>Fo is connected.</h3><p>You can close this tab.</p>")
+
+
+@app.get("/oauth/status")
+def oauth_status():
+    return fo_oauth.status()
+
+
 @app.get("/api/health")
 def health():
     return {"ok": True, "fo_mock": config.FO_MOCK, "claude": bool(config.ANTHROPIC_API_KEY),
@@ -70,7 +126,8 @@ def create_case(body: CaseIn):
 
 
 @app.post("/api/cases/{case_id}/approvals")
-def approve(case_id: str, body: ApprovalIn):
+def approve(case_id: str, body: ApprovalIn, request: Request):
+    _local_only(request)
     if not db.get_case(case_id):
         raise HTTPException(404, "case not found")
     try:
