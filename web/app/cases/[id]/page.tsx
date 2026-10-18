@@ -389,7 +389,7 @@ function TimelineItem({ e, last, fresh, now, sendState, sentLater }: { e: CaseEv
           <p data-fo-send-state={sendState} className={cx("mt-1.5 text-sm", sendState === "held" ? "font-medium text-amber-800" : sendState === "sent" ? "text-emerald-800" : "text-zinc-600")}>
             {sendState === "held" ? "Fo drafted it and is holding it for your go-ahead. Nothing has been sent yet."
               : sendState === "sent" ? `Sent to ${maskAddress(e.proposed_email?.to) || "test bank inbox"}`
-              : `Fo drafted email to ${maskAddress(e.proposed_email?.to) || "test bank inbox"}`}
+              : `Asked Fo to email ${maskAddress(e.proposed_email?.to) || "test bank inbox"}. Its reply didn't clearly confirm the send, so the agent isn't assuming it went out.`}
           </p>
         )}
         {isFoReport ? null : e.pending ? <p className="mt-1.5 text-sm text-amber-700">Waiting for your decision — see the approval card above.</p>
