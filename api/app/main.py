@@ -44,9 +44,27 @@ class ApprovalIn(BaseModel):
     note: Optional[str] = None
 
 
+_LOCAL_HOSTS = ("127.0.0.1", "::1", "localhost")
+_PROXY_HEADERS = ("x-forwarded-for", "x-forwarded-host", "x-real-ip", "forwarded", "cf-connecting-ip")
+
+
+def _host_name(host: str) -> str:
+    """Host header without its port: 'localhost:8020' -> 'localhost', '[::1]:8020' -> '::1'."""
+    host = host.strip().lower()
+    if host.startswith("["):
+        return host[1:host.find("]")] if "]" in host else host
+    return host.rsplit(":", 1)[0] if host.count(":") == 1 else host
+
+
 def _local_only(request: Request) -> None:
-    if not request.client or request.client.host not in ("127.0.0.1", "::1", "localhost"):
-        raise HTTPException(403, "sign-in routes are only reachable from this computer")
+    """Sign-in and approval routes answer only a browser on this computer. A tunnel or proxy makes every
+    request look like it came from 127.0.0.1, so a forwarded header or a non-local Host is refused too."""
+    if not request.client or request.client.host not in _LOCAL_HOSTS:
+        raise HTTPException(403, "only reachable from this computer")
+    if any(h in request.headers for h in _PROXY_HEADERS):
+        raise HTTPException(403, "only reachable from this computer, not through a proxy or tunnel")
+    if _host_name(request.headers.get("host", "")) not in _LOCAL_HOSTS:
+        raise HTTPException(403, "only reachable at localhost")
 
 
 @app.get("/oauth/start")
@@ -108,7 +126,8 @@ def create_case(body: CaseIn):
 
 
 @app.post("/api/cases/{case_id}/approvals")
-def approve(case_id: str, body: ApprovalIn):
+def approve(case_id: str, body: ApprovalIn, request: Request):
+    _local_only(request)
     if not db.get_case(case_id):
         raise HTTPException(404, "case not found")
     try:
