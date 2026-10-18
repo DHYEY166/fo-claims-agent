@@ -254,3 +254,18 @@ def test_route_escalates_on_grounding_problems():
 def test_stub_types_claims(text, kind):
     from app.classifier import _stub
     assert _stub(text)[0].case_type.value == kind
+
+
+@pytest.mark.parametrize("value,line,ok", [
+    ("780.00", "Total charged: $780.", True),
+    ("1200.00", "Policy payout requested: $1,200", True),
+    ("89.99", "Charged $89.99 by STREAMFLIX", True),
+    ("640.00", "Charged $64.00 on Oct 2", False),
+    ("1200.00", "Order 120000 shipped", False)])
+def test_grounding_compares_amounts_as_numbers(value, line, ok):
+    from app.classifier import ground
+    e = ex(amount={"status": "present", "value": value, "citation": "L1"})
+    problems = ground(e, line)
+    assert (problems == []) is ok, problems
+    if not ok:
+        assert "cited lines" in pipeline.route(e, 1, line, problems)
