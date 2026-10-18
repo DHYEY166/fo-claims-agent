@@ -354,7 +354,7 @@ def _real_contact(case_id: str, action: dict, t0: float) -> None:
              detail="One email per case to the test bank inbox, and no automated retries. Nothing sent.")
         set_status(case_id, "escalated")
         return
-    if not db.reserve_test_send(case_id, day, config.MAX_TEST_SENDS_PER_DAY):
+    if action.get("kind") != "follow_up" and not db.reserve_test_send(case_id, day, config.MAX_TEST_SENDS_PER_DAY):
         emit(case_id, "escalated_to_human", "Daily test-send cap reached", "agent",
              detail=f"{config.MAX_TEST_SENDS_PER_DAY} sends to the test bank inbox already today. Nothing sent.")
         set_status(case_id, "escalated")
