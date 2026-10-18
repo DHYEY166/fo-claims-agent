@@ -44,26 +44,48 @@ def _amount_on_line(value: object, line: str) -> bool:
     return False
 
 
+_CITE_PART = re.compile(r"L(\d+)(?:\s*-\s*L(\d+))?")
+
+
+def cited_lines(citation: str | None, n_lines: int) -> list[int] | None:
+    """Parse "L3", "L1, L2" or "L1-L2" (parts may be mixed) into 1-based line numbers.
+    None if anything is malformed, a range runs backwards, or a cited line doesn't exist."""
+    parts = [p.strip() for p in (citation or "").split(",")]
+    if not parts or any(not p for p in parts):
+        return None
+    out: list[int] = []
+    for part in parts:
+        m = _CITE_PART.fullmatch(part)
+        if not m:
+            return None
+        a = int(m.group(1))
+        b = int(m.group(2)) if m.group(2) else a
+        if not (1 <= a <= b <= n_lines):
+            return None
+        out.extend(n for n in range(a, b + 1) if n not in out)
+    return out
+
+
 def ground(ex: Extraction, text: str) -> list[str]:
-    """Code-side grounding check: a cited line must exist and contain the value."""
+    """Code-side grounding check: every cited line must exist, and the value must be on at least one of them."""
     lines = text.splitlines()
     problems = []
     for f in EVIDENCE_FIELDS:
         ev = getattr(ex, f)
         if ev.status.value != "present":
             continue
-        m = re.fullmatch(r"L(\d+)", (ev.citation or "").strip())
-        if not m or not (1 <= int(m.group(1)) <= len(lines)):
+        nums = cited_lines(ev.citation, len(lines))
+        if nums is None:
             problems.append(f"{f}: citation {ev.citation!r} is not an input line")
             continue
-        line = lines[int(m.group(1)) - 1].lower()
+        cited = [lines[n - 1].lower() for n in nums]
         if f == "amount":
-            if not _amount_on_line(ev.value, line):
+            if not any(_amount_on_line(ev.value, line) for line in cited):
                 problems.append(f"{f}: value {ev.value!r} not found on {ev.citation}")
             continue
         probe = re.sub(r"[^a-z0-9]", "", (ev.value or "").lower())
         if f not in ("transaction_date", "reason", "counterparty", "currency") and probe and \
-                probe not in re.sub(r"[^a-z0-9]", "", line):
+                not any(probe in re.sub(r"[^a-z0-9]", "", line) for line in cited):
             problems.append(f"{f}: value {ev.value!r} not found on {ev.citation}")
     return problems
 
