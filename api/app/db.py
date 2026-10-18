@@ -37,8 +37,14 @@ def init():
           detail TEXT, actor TEXT, payload TEXT);
         CREATE TABLE IF NOT EXISTS webhook_seen (id TEXT PRIMARY KEY, ts TEXT);
         CREATE TABLE IF NOT EXISTS test_sends (id INTEGER PRIMARY KEY AUTOINCREMENT, case_id TEXT UNIQUE, ts TEXT);
-        CREATE UNIQUE INDEX IF NOT EXISTS test_sends_case_id ON test_sends(case_id);
         """)
+        dupes = c.execute("SELECT case_id, COUNT(*) FROM test_sends GROUP BY case_id HAVING COUNT(*) > 1").fetchall()
+        if dupes:
+            raise RuntimeError(
+                f"test_sends has more than one send row for {len(dupes)} case(s) "
+                f"({', '.join(str(d[0]) for d in dupes[:5])}). The one-send-per-case index can't be built. "
+                "Back up the database and remove the extra rows by hand; nothing was changed.")
+        c.execute("CREATE UNIQUE INDEX IF NOT EXISTS test_sends_case_id ON test_sends(case_id)")
 
 
 CASE_FIELDS = ["id", "type", "title", "counterparty", "amount_cents", "currency", "status",
