@@ -1,7 +1,7 @@
 # GSD Claims Agent — web dashboard
 
 Next.js 15 (App Router, TypeScript) + Tailwind dashboard for the claims agent built on **Fo**: submit a claim,
-watch the agent classify → gather evidence → **ask for approval** → email (test stand-in only) → follow up → resolve, live.
+watch the agent classify → gather evidence → **ask for approval** → email (test stand-in only) → follow-up comes due and the case is flagged for you, with any follow-up needing your approval again → resolve, live.
 
 ## Run
 

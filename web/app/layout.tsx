@@ -4,7 +4,7 @@ import { GeistMono } from "geist/font/mono";
 import { Header } from "@/components/Header";
 import "./globals.css";
 
-export const metadata: Metadata = { title: "GSD Claims Agent", description: "Files disputes and claims, follows up until resolved." };
+export const metadata: Metadata = { title: "GSD Claims Agent", description: "Files disputes and claims, tracks each case to resolution, and asks before every follow-up." };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
