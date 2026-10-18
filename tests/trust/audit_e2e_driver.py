@@ -4,15 +4,24 @@ Started in a subprocess by test_audit_chain_e2e.py so DB_PATH / AUDIT_DB_PATH po
 app.config is imported. Fo stays mocked; nothing leaves this computer.
 """
 import json
+import os
 import sqlite3
 import sys
 import time
 
-from fastapi.testclient import TestClient
+import tempfile
 
-from app import db, pipeline
-from app import trust_bridge as tb
-from app.main import app
+# Refuse to run against real data: this script writes cases and drops an audit trigger.
+_TMP = os.path.realpath(tempfile.gettempdir())
+for _var in ("DB_PATH", "AUDIT_DB_PATH"):
+    if not os.path.realpath(os.environ.get(_var, "")).startswith(_TMP + os.sep):
+        sys.exit(f"refusing to run: {_var} must point inside {_TMP}")
+
+from fastapi.testclient import TestClient  # noqa: E402
+
+from app import db, pipeline  # noqa: E402
+from app import trust_bridge as tb  # noqa: E402
+from app.main import app  # noqa: E402
 
 TEXT = ("Chase card ending 4417. Charge of $89.99 from STREAMFLIX on 2026-10-12. I cancelled in August "
         "and never authorized this. Please dispute it.")
@@ -51,6 +60,7 @@ def main(mode):
                audit_text=json.dumps(rows["rows"]) + json.dumps(api_audit))
     # The log refuses edits; then simulate someone with file access dropping that guard and editing a row.
     tamper = "UPDATE audit_log SET detail='{}' WHERE id=(SELECT MIN(id) FROM audit_log WHERE case_id=?)"
+    assert os.path.realpath(tb._path) == os.path.realpath(os.environ["AUDIT_DB_PATH"])
     con = sqlite3.connect(tb._path)
     try:
         con.execute(tamper, (cid,))
