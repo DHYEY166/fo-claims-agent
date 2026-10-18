@@ -5,7 +5,9 @@ export class ApiError extends Error {
 }
 
 /** Empty => use the built-in mock route handlers (same origin). Set NEXT_PUBLIC_API_BASE=http://localhost:8000 for the real backend. */
-export const API_BASE = (process.env.NEXT_PUBLIC_API_BASE ?? "").replace(/\/$/, "");
+/** Public demo build (Vercel). Forces the built-in mock layer so no request can reach a real agent. */
+export const DEMO_DEPLOY = ["1", "true", "on"].includes((process.env.NEXT_PUBLIC_DEMO_DEPLOY ?? "").toLowerCase());
+export const API_BASE = DEMO_DEPLOY ? "" : (process.env.NEXT_PUBLIC_API_BASE ?? "").replace(/\/$/, "");
 export const IS_MOCK = API_BASE === "";
 
 async function j<T>(path: string, init?: RequestInit): Promise<T> {

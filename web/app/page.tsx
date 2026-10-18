@@ -42,7 +42,7 @@ export default function CasesPage() {
       <div className="flex items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Cases</h1>
-          <p className="mt-1 text-sm text-zinc-500">Disputes and claims your agent is working. It tracks each case to resolution and asks before every follow-up.</p>
+          <p className="mt-1 text-sm text-zinc-500">Disputes and claims your agent is working. It asks before every send and hands the case back to you if the bank stays quiet.</p>
         </div>
         <LiveDot mode={mode} />
       </div>
