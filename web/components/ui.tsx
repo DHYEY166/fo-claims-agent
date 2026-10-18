@@ -92,7 +92,7 @@ export function ConfidenceChip({ value }: { value: number }) {
 }
 
 export function LiveDot({ mode }: { mode: "connecting" | "live" | "polling" }) {
-  const m = { live: ["bg-emerald-500", "Live"], polling: ["bg-amber-500", "Polling · 3s"], connecting: ["bg-zinc-400", "Connecting"] }[mode];
+  const m = { live: ["bg-emerald-500", "Live updates"], polling: ["bg-amber-500", "Polling · 3s"], connecting: ["bg-zinc-400", "Connecting"] }[mode];
   return (
     <span className="inline-flex items-center gap-1.5 text-xs text-zinc-500">
       <span className="relative flex h-2 w-2">

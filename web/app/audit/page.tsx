@@ -12,7 +12,7 @@ const EVENT: Record<string, { label: string; Icon: typeof Check; tone: string }>
   approval_requested: { label: "Requested", Icon: Hand, tone: "bg-amber-50 text-amber-700 ring-amber-200" },
   approval_decided: { label: "Decided", Icon: Check, tone: "bg-emerald-50 text-emerald-700 ring-emerald-200" },
   fo_ask_authorized: { label: "Authorized", Icon: KeyRound, tone: "bg-accent-50 text-accent-700 ring-accent-100" },
-  ask_fo_sent: { label: "Sent", Icon: Send, tone: "bg-sky-50 text-sky-700 ring-sky-200" },
+  ask_fo_sent: { label: "Asked Fo", Icon: Send, tone: "bg-sky-50 text-sky-700 ring-sky-200" },
 };
 
 function parseDetail(d: string | null): Record<string, unknown> | null {
