@@ -12,7 +12,19 @@ const EVENT: Record<string, { label: string; Icon: typeof Check; tone: string }>
   approval_requested: { label: "Requested", Icon: Hand, tone: "bg-amber-50 text-amber-700 ring-amber-200" },
   approval_decided: { label: "Decided", Icon: Check, tone: "bg-emerald-50 text-emerald-700 ring-emerald-200" },
   fo_ask_authorized: { label: "Authorized", Icon: KeyRound, tone: "bg-accent-50 text-accent-700 ring-accent-100" },
-  ask_fo_sent: { label: "Sent", Icon: Send, tone: "bg-sky-50 text-sky-700 ring-sky-200" },
+  ask_fo_sent: { label: "Asked Fo", Icon: Send, tone: "bg-sky-50 text-sky-700 ring-sky-200" },
+  ask_fo_go_sent: { label: "Told Fo go", Icon: Send, tone: "bg-sky-50 text-sky-700 ring-sky-200" },
+  fo_turn_closed: { label: "Fo turn ended", Icon: Link2, tone: "bg-zinc-50 text-zinc-700 ring-zinc-200" },
+  fo_send_outcome: { label: "Send outcome", Icon: Link2, tone: "bg-zinc-50 text-zinc-700 ring-zinc-200" },
+  recipient_check: { label: "Recipient check", Icon: Link2, tone: "bg-zinc-50 text-zinc-700 ring-zinc-200" },
+  classified: { label: "Classified", Icon: Check, tone: "bg-zinc-50 text-zinc-700 ring-zinc-200" },
+  intake: { label: "Intake", Icon: Check, tone: "bg-zinc-50 text-zinc-700 ring-zinc-200" },
+  blocked: { label: "Blocked by policy", Icon: ShieldX, tone: "bg-rose-50 text-rose-700 ring-rose-200" },
+  follow_up_scheduled: { label: "Follow-up scheduled", Icon: Link2, tone: "bg-zinc-50 text-zinc-700 ring-zinc-200" },
+  reply_received: { label: "Reply received", Icon: Link2, tone: "bg-zinc-50 text-zinc-700 ring-zinc-200" },
+  resolved: { label: "Resolved", Icon: Check, tone: "bg-emerald-50 text-emerald-700 ring-emerald-200" },
+  follow_up_due_escalated: { label: "Follow-up due, sent to human", Icon: Hand, tone: "bg-amber-50 text-amber-700 ring-amber-200" },
+  contact_stale_escalated: { label: "Contact stale, sent to human", Icon: Hand, tone: "bg-amber-50 text-amber-700 ring-amber-200" },
 };
 
 function parseDetail(d: string | null): Record<string, unknown> | null {
