@@ -114,7 +114,7 @@ Run `npm run dev` without `NEXT_PUBLIC_API_BASE` to get the dashboard's built-in
 
 ## Tests
 
-71 automated tests pass in CI (mock mode). To run them from the repo root:
+78 automated tests pass in CI (mock mode). To run them from the repo root:
 
 ```bash
 pip install -r api/requirements.txt -r tests/trust/requirements.txt
