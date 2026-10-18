@@ -39,7 +39,7 @@ This is a hackathon demo test.
 ## If the live step goes differently
 
 - **Fo shows "Fo drafted email to test bank inbox".** That's the neutral state. Keep recording and wait.
-- **Fo holds it** (amber "HELD BY FO: waiting for go-ahead"). Click "Give Fo the go-ahead" once. Use this line over the held frame: "Fo holds the first email for a second yes. That's another approval, on Fo's side." Say "Sent" only once the step shows a confirmed send. If Fo asks again or drafts something new, stop and go back to fo lead.
+- **Fo holds it** (amber "HELD BY FO: waiting for go-ahead"). Click "Give Fo the go-ahead" once and confirm the "Give Fo the go-ahead?" box. Use this line over the held frame: "Fo holds the first email for a second yes. That's another approval, on Fo's side." Say "Sent" only once the step shows a confirmed send. If Fo asks again or drafts something new, stop and go back to fo lead.
 - **Unclear reply** (gray UNCONFIRMED, "Couldn't confirm Fo sent the email"). Keep it in the video. Use "Fo answered but didn't clearly say it sent, so the agent won't guess. It escalates to me instead of marking it sent." Never say sent.
 - **Error or nothing after about 2 minutes.** Don't click again. Stop, keep the footage, and go back to fo lead.
 
