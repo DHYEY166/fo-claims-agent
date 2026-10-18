@@ -236,7 +236,25 @@ def no_resend(what: str) -> str:
 
 
 def _clean(v: Any, n: int = 40) -> Optional[str]:
-    return _SAFE.sub("", str(v))[:n].strip() if v not in (None, "") else None
+    """Strip to safe characters and cap at n. A cut that would land mid-word backs up to the last space,
+    unless there is none (IDs, dates and card digits are hard-cut)."""
+    if v in (None, ""):
+        return None
+    s = _SAFE.sub("", str(v)).strip()
+    if len(s) <= n:
+        return s
+    cut = s[:n]
+    if s[n] != " " and cut[-1] != " " and " " in cut:
+        cut = cut[:cut.rindex(" ")]
+    return cut.strip()
+
+
+_PARTY_BY_TYPE = {"card_dispute": "The bank", "insurance_claim": "The insurer", "package_claim": "The carrier"}
+
+
+def who(case: dict) -> str:
+    """The company on the case, for user-facing copy: "State Farm", not always "the bank"."""
+    return _clean(case.get("counterparty")) or _PARTY_BY_TYPE.get(case.get("type") or "", "The company")
 
 
 def build_fo_request(case: dict, target: str, follow_up: bool = False) -> str:
@@ -305,7 +323,8 @@ def decide(case_id: str, event_id: str, decision: str, note: Optional[str] = Non
         out = emit(case_id, "rejected", "You declined the follow-up", "human", detail=note)
         tb.call("log", case_id, "human", "follow_up_rejected", {})
         emit(case_id, "escalated_to_human", "Case handed back to you", "agent",
-             detail="No follow-up was sent. The bank hasn't replied, so the next step is yours.")
+             detail=f"No follow-up was sent. {who(db.get_case(case_id) or {})} hasn't replied, "
+                    "so the next step is yours.")
         set_status(case_id, "escalated")
         return out
     if decision == "reject":
@@ -645,7 +664,7 @@ def run_follow_ups() -> None:
              detail="No webhook or reply arrived.")
         if request_follow_up(c["id"]):
             continue
-        emit(c["id"], "escalated_to_human", "Bank stayed quiet after the follow-up", "agent",
+        emit(c["id"], "escalated_to_human", f"{who(c)} stayed quiet after the follow-up", "agent",
              fo_conversation_id=c.get("fo_conversation_id"),
              detail="One follow-up per case, and it got no reply. Handing the case back to you.")
         set_status(c["id"], "escalated", follow_up_at=None)
