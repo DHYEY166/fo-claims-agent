@@ -145,6 +145,7 @@ Send state of a live "Fo replied" step (never says "sent" without a reason):
    "Follow-up scheduled" before the next Fo reply → sent.
 2. Text fallback, only when there is no backend signal: `/^\s*sent\b/`, `/\bI('ve| have)? sent\b/`, `/message id/` → sent;
    otherwise "held for your go-ahead" / "say go and I'll send" / "waiting for your go-ahead" → HELD; otherwise neutral "Fo drafted email to test bank inbox".
+   A reply matching BOTH a sent pattern and a held phrase is "unclear" (as in the backend) and shows the neutral drafted line, no badge.
    Exception for old backends (e8a5889) that scheduled a follow-up even after a hold: if Fo's text has those narrow held words
    and no sent words, the step shows HELD.
 
@@ -156,7 +157,8 @@ Send state of a live "Fo replied" step (never says "sent" without a reason):
 | `Couldn't confirm Fo sent the email` | `escalated_to_human` | Unconfirmed: neutral "Fo drafted email to test bank inbox" plus a gray UNCONFIRMED badge. Never sent and never HELD, whatever Fo's text says. The step itself renders as a normal escalated step. |
 | `Fo confirmed it sent the email` | `note` (actor `fo` or `system`) | Sent. Overrides HELD, unconfirmed and the old-case exception for every earlier Fo reply. The hold banner and header badge hide. The step renders green; its detail goes through `maskEmails`. |
 | `Follow-up scheduled` | `follow_up_scheduled` | Sent (confirmed send) |
-| any title, kind `email_sent`, not `mock` / `[MOCK]` | `email_sent` | Treated exactly like `Fo confirmed it sent the email`. :8020 emitted the case_cbd0d1cf1a confirmation this way (actor `human`, title "Dhyey gave the go-ahead directly in Fo, and Fo confirmed it sent at …") instead of the agreed title. |
+| kind `email_sent`, not `mock` / `[MOCK]`, and actor `fo` (or the exact title `Fo confirmed it sent the email`) | `email_sent` | Treated exactly like `Fo confirmed it sent the email`. Any other human or system `email_sent` does **not** count as a confirmed send. |
+| `Dhyey gave the go-ahead directly in Fo, and Fo confirmed it sent at 4:36 PM ET` (exact) | `email_sent`, actor `human` | The one recorded honesty event (evt_0138216f9e on case_cbd0d1cf1a). Matched by exact title and counted as a confirmed send. |
 
 "Sent to test bank inbox" shows only with backend confirmation: a later `Fo confirmed it sent the email`, a later `Follow-up scheduled`
 (before the next Fo reply), or case status `awaiting_reply` for the latest reply. The text fallback above only applies to old cases

@@ -191,10 +191,18 @@ const HELD_TEXT = /held for your go-ahead|say go and I(?:'|’)?ll send|waiting 
 const isFoGo = (e: CaseEvent) => e.kind === "approval_requested" && typeof e.proposed_action === "object" && e.proposed_action?.kind === "fo_go";
 const isHoldingStep = (e: CaseEvent) => /^Fo is holding the email/i.test(e.title);
 const isFollowUp = (e: CaseEvent) => e.kind === "follow_up_scheduled" || /^Follow-up scheduled/i.test(e.title);
-// Backend send confirmation: the agreed title, or a non-simulated email_sent step (what :8020 actually
-// emitted on case_cbd0d1cf1a: kind email_sent, actor human, title "Dhyey gave the go-ahead directly in Fo, ...").
-const isConfirmedSentStep = (e: CaseEvent) => /^Fo confirmed it sent the email$/i.test(e.title.trim())
-  || (String(e.kind) === "email_sent" && e.mock !== true && !/^\[MOCK\]/i.test(e.title));
+// Backend send confirmation. A step titled exactly "Fo confirmed it sent the email" counts (any kind).
+// An email_sent step counts only if it isn't simulated AND it comes from Fo, carries that same title,
+// or is the recorded honesty event on case_cbd0d1cf1a (evt_0138216f9e, actor human). Any other human or
+// system email_sent does not count.
+const CONFIRMED_TITLE = "Fo confirmed it sent the email";
+const HONESTY_TITLE = "Dhyey gave the go-ahead directly in Fo, and Fo confirmed it sent at 4:36 PM ET";
+const isConfirmedSentStep = (e: CaseEvent) => {
+  const title = e.title.trim();
+  if (title === CONFIRMED_TITLE) return true;
+  if (String(e.kind) !== "email_sent" || e.mock === true || /^\[MOCK\]/i.test(title)) return false;
+  return e.actor === "fo" || title === HONESTY_TITLE;
+};
 const isUnconfirmedStep = (e: CaseEvent) => /^Couldn(?:'|’)?t confirm Fo sent the email/i.test(e.title);
 type SendState = "sent" | "held" | "drafted" | "unconfirmed";
 
@@ -214,8 +222,10 @@ function foSendStates(events: CaseEvent[], c: { status?: string; fo_sent?: boole
     while (j < events.length && !isFoReportEvent(events[j])) j++;
     const after = events.slice(i + 1, j);
     const latest = j === events.length;
-    const textSent = SENT_TEXT.some((r) => r.test(e.detail ?? ""));
-    const textHeld = !textSent && HELD_TEXT.test(e.detail ?? "");
+    const anySent = SENT_TEXT.some((r) => r.test(e.detail ?? ""));
+    const anyHeld = HELD_TEXT.test(e.detail ?? "");
+    const textSent = anySent && !anyHeld; // mixed wording is "unclear" (backend rule), never sent or held
+    const textHeld = anyHeld && !anySent;
     // (a) backend signals, strongest first. An explicit "Fo confirmed it sent the email" anywhere after
     // this reply overrides HELD, unconfirmed and the old-case exception.
     if (events.slice(i + 1).some(isConfirmedSentStep)) out[e.id] = "sent";
