@@ -24,7 +24,7 @@ Sat Oct 17, 8 PM ET / 5 PM PT. Tonight's demo is optional (it's for hardware tea
 | On screen | Say | Press |
 |---|---|---|
 | "Fo drafted email to test bank inbox" | Nothing new. Keep waiting. | Nothing |
-| LIVE, "Sent to test bank inbox" | "Fo sent it to our test bank inbox. The bank's reply lands in the test inbox, and the agent keeps the case open until it's resolved." | Nothing |
+| LIVE, "Sent to test bank inbox" | "Fo sent it to our test bank inbox. The agent schedules a follow-up. If the bank doesn't answer, it flags the case for us, and any follow-up needs our approval again." | Nothing |
 | HELD BY FO, and a "Give Fo the go-ahead" card is offered | "Fo drafted it and is holding it until I say go. That's a second approval, on Fo's side." | The go-ahead, **once**. Say sent only after "Sent to test bank inbox" shows. |
 | HELD BY FO, and no go-ahead card, or no send 90 seconds after the go-ahead | The same held line. | Nothing more. Don't mention follow-ups. |
 | UNCONFIRMED, "Couldn't confirm Fo sent the email" | "Fo answered, but it didn't clearly say it sent the email. So the agent won't guess. It escalates the case to me instead of marking it sent." | Nothing |

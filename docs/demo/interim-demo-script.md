@@ -1,3 +1,5 @@
+> **Oct 17 version.** This is the script as used for Saturday's interim demo, kept as a record. Its wording about follow-ups is out of date; see `docs/video/final-video-script.md` and the README for current wording.
+
 # Interim demo script (2:00), Sat Oct 17, 5 PM PT / 8 PM ET
 
 Tonight's demo is optional (organizer's latest schedule). Dhyey decides whether we present. Version 4, one live email. Dhyey approved one real email to the test bank inbox, sent live on stage.

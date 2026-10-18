@@ -4,7 +4,7 @@
 
 **What to have ready before the form arrives**
 - **Project name:** TBD with fo lead.
-- **One-liner:** A Fo agent that files card disputes and insurance claims for you and follows up until they're resolved.
+- **One-liner:** A Fo agent that files card disputes and insurance or package claims for you and tracks each case until it's resolved, asking before every follow-up.
 - **X post link:** Dhyey's quote-repost, posted at 1:15 PM ET / 10:15 AM PT.
 - **GitHub repo link:** from fo repo.
 - **Demo video link:** the final video.
@@ -14,4 +14,4 @@
 
 **Trust by design:** this section comes from fo trust qa's README section, using their wording.
 
-**What's next:** the follow-up loop that keeps going until the case is closed. Only list this as done if it's built and tested by Monday.
+**What's next:** follow-up emails drafted for you to approve when the bank goes quiet (today the agent flags the case to you instead), and real Fo email for insurance and package claims beyond our test inbox. Only list something as done if it's built and tested by Monday.
