@@ -9,7 +9,8 @@
     "screenshots": "node scripts/screenshots.mjs",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "check": "npm run lint && npm run typecheck"
+    "check": "npm run lint && npm run typecheck",
+    "test:unit": "rm -rf /tmp/esc-copy && tsc lib/escalationCopy.ts --outDir /tmp/esc-copy --module es2020 --target es2020 --moduleResolution bundler --skipLibCheck --types node && ESC_COPY_JS=/tmp/esc-copy/escalationCopy.js node --test tests/"
   },
   "dependencies": {
     "geist": "^1.8.1",

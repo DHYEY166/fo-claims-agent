@@ -6,6 +6,7 @@ import {
   ShieldAlert, ShieldCheck, StickyNote, Tag, TriangleAlert, UserRound, X, XCircle, CreditCard,
 } from "lucide-react";
 import { ApiError, api } from "@/lib/api";
+import { escalationFooter } from "@/lib/escalationCopy";
 import { useLive } from "@/lib/useLive";
 import { TraceRow } from "@/components/TraceRow";
 import { EvidenceGrid } from "@/components/Evidence";
@@ -68,6 +69,10 @@ export default function CaseDetail({ params }: { params: Promise<{ id: string }>
   const caseHeld = !confirmedSent && (data.held === true || pending.some(isFoGo) || (!!lastReport && sendStates[lastReport.id] === "held"
     && (data.status === "escalated" || data.status === "awaiting_approval")));
   const isHoldEscalation = !!escalation && isHoldingStep(escalation);
+  // Emails Fo actually sent on this case before it escalated (backend-confirmed, or a reply marked "sent").
+  const escIdx = escalation ? data.events.indexOf(escalation) : -1;
+  const sentBeforeEscalation = escIdx > 0 && data.events.slice(0, escIdx)
+    .some((e) => isConfirmedSentStep(e) || (isFoReportEvent(e) && sendStates[e.id] === "sent"));
   const working = ["new", "classified", "gathering_evidence", "contacting"].includes(data.status);
 
   return (
@@ -107,10 +112,7 @@ export default function CaseDetail({ params }: { params: Promise<{ id: string }>
                     <p className="mt-1.5 text-sm text-amber-900"><span className="font-medium">Reason:</span> {escReasons.map(maskEmails).join("; ")}</p>
                   )}
                   {escalation.detail && <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-amber-900/80">{maskEmails(escalation.detail)}</p>}
-                  <p className="mt-2 text-xs font-medium text-amber-700">{isHoldEscalation
-                    ? "Fo drafted the email but nothing was sent. Handed to a human EA."
-                    : escalation && isUnconfirmedStep(escalation) ? "Fo's reply didn't confirm a send, so the agent isn't assuming one. Handed to a human EA."
-                    : "The agent stopped before contacting anyone and handed this to a human EA."}</p>
+                  <p className="mt-2 text-xs font-medium text-amber-700">{escalationFooter({ held: isHoldEscalation, unconfirmed: !!escalation && isUnconfirmedStep(escalation), alreadySent: sentBeforeEscalation })}</p>
                 </div>
               </div>
             </section>
