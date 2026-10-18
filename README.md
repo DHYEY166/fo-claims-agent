@@ -6,9 +6,9 @@ A Fo agent that files card disputes and insurance or package claims for you, and
 
 Built for the Wajo GSD hackathon on [Fo](https://wajo.ai), Wajo's action agent, with Claude.
 
-[![Watch the 83-second demo](docs/video/demo-thumbnail.png)](docs/video/demo.mp4)
+[![Watch the 89-second demo](docs/video/demo-thumbnail.png)](docs/video/demo.mp4)
 
-**[Watch the 83-second demo](docs/video/demo.mp4)** (narrated with an AI voiceover). <!-- DEMO_LINK -->
+**[Watch the 89-second demo](docs/video/demo.mp4)** (narrated with an AI voiceover). <!-- DEMO_LINK -->
 
 **[Live demo (demo data only)](https://fo-claims-agent.vercel.app/)**: the dashboard on Vercel with sample cases. Nothing is sent from it.
 
