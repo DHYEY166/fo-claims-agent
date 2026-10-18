@@ -172,3 +172,22 @@ def test_post_send_steps_are_audited(tmp_path, monkeypatch):
                           follow_up_at=(datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat())["id"]
     pipeline.run_follow_ups()
     assert ("log", late, "follow_up_due_escalated") in logged
+
+
+def test_log_filter_masks_args_and_keeps_uvicorn_access_log_working(monkeypatch):
+    import logging
+    from uvicorn.logging import AccessFormatter
+    from app import config, masking
+    monkeypatch.setattr(config, "FO_TEST_TARGET", "someone.private+bank@example.com")
+    f = masking.MaskFilter()
+    rec = logging.LogRecord("uvicorn.access", logging.INFO, __file__, 1, '%s - "%s %s HTTP/%s" %d',
+                            ("127.0.0.1:5000", "GET", "/api/cases?to=someone.private+bank@example.com", "1.1", 200),
+                            None)
+    assert f.filter(rec) and f.filter(rec)  # logger and handler both run it
+    out = AccessFormatter('%(client_addr)s - "%(request_line)s" %(status_code)s', use_colors=False).format(rec)
+    assert "example.com" not in out and "someone.private" not in out
+    assert "GET" in out and "200" in out
+    plain = logging.LogRecord("pipeline", logging.INFO, __file__, 1, "mail to %s",
+                              ("someone.private@example.com",), None)
+    f.filter(plain)
+    assert "someone.private" not in plain.getMessage()
