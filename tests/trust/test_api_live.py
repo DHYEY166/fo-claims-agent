@@ -1,7 +1,12 @@
 """Black-box tests against the running API (default http://localhost:8000). Skipped if it's not up.
 These hit the real Claude classifier when ANTHROPIC_API_KEY is set on the server; Fo stays mocked."""
-import os, time, json, concurrent.futures as cf
-import httpx, pytest
+import concurrent.futures as cf
+import json
+import os
+import time
+
+import httpx
+import pytest
 
 BASE = os.environ.get("API_BASE", "http://localhost:8000")
 try:
@@ -66,8 +71,10 @@ def test_concurrent_double_approve_sends_once():
     c = _wait(cid, {"awaiting_approval"})
     eid = _pending(c)["id"]
     with cf.ThreadPoolExecutor(8) as ex:
-        codes = list(ex.map(lambda _: httpx.post(f"{BASE}/api/cases/{cid}/approvals",
-                                                   json={"event_id": eid, "decision": "approve"}).status_code, range(8)))
+        def _approve(_):
+            return httpx.post(f"{BASE}/api/cases/{cid}/approvals",
+                              json={"event_id": eid, "decision": "approve"}).status_code
+        codes = list(ex.map(_approve, range(8)))
     _wait(cid, {"resolved", "failed", "escalated"})
     c = httpx.get(f"{BASE}/api/cases/{cid}").json()
     sent = [e for e in c["events"] if e["kind"] == "email_sent"]
