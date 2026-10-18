@@ -6,6 +6,7 @@ evidence_gathered is the one timeline step with no audit row: it is internal and
 """
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -84,8 +85,17 @@ def test_audit_log_refuses_edits_and_chain_catches_tampering(happy):
 
 
 def test_audit_has_no_raw_claim_text(happy):
-    for leaked in ("4417", "STREAMFLIX", "never authorized"):
-        assert leaked not in happy["audit_text"]
+    text = happy["audit_text"]
+    # Hashes, ids and timestamps are hex or digits, so "4417" can show up inside them by chance.
+    # Only a standalone 4417 counts as the card digits leaking.
+    assert not re.search(r"(?<![0-9A-Fa-f])4417(?![0-9A-Fa-f])", text)
+    for leaked in ("STREAMFLIX", "never authorized"):
+        assert leaked not in text
+
+
+def test_leak_check_ignores_digits_inside_hashes():
+    assert not re.search(r"(?<![0-9A-Fa-f])4417(?![0-9A-Fa-f])", '{"row_hash": "ab4417cd", "ts": 1760804417.5}')
+    assert re.search(r"(?<![0-9A-Fa-f])4417(?![0-9A-Fa-f])", '{"detail": "card ending 4417"}')
 
 
 def test_rejected_case_never_reaches_fo(tmp_path):
