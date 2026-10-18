@@ -49,8 +49,11 @@ def ground(ex: Extraction, text: str) -> list[str]:
 def _stub(text: str) -> tuple[Extraction, dict[str, Any]]:
     t = text.lower()
     absent = {"status": "absent"}
-    kind = ("card_dispute" if any(w in t for w in ["charge", "card", "billed"]) else
-            "package_claim" if any(w in t for w in ["package", "tracking", "delivered"]) else "other")
+    # Package words first (a package claim can mention the card it was paid with), then insurance, then card.
+    kind = ("package_claim" if any(w in t for w in ["package", "tracking", "delivered", "parcel", "shipment"]) else
+            "insurance_claim" if any(w in t for w in ["insurance", "insurer", "policy", "deductible", "premium",
+                                                      "coverage"]) else
+            "card_dispute" if any(w in t for w in ["charge", "card", "billed"]) else "other")
     ex = Extraction.model_validate(dict(
         case_type=kind, confidence=0.75 if kind != "other" else 0.2,
         title=(text.strip().splitlines() or ["Untitled claim"])[0][:60],

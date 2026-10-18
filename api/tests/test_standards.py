@@ -239,3 +239,18 @@ def test_init_refuses_old_db_with_duplicate_sends(tmp_path, monkeypatch):
     check = sqlite3.connect(path)
     assert check.execute("SELECT COUNT(*) FROM test_sends").fetchone()[0] == 2
     check.close()
+
+
+def test_route_escalates_on_grounding_problems():
+    assert pipeline.route(ex(), 100, "x", []) is None
+    assert "cited lines" in pipeline.route(ex(), 100, "x", ["amount: value '$640.00' not found on L2"])
+
+
+@pytest.mark.parametrize("text,kind", [
+    ("My renters insurance policy should cover the stolen bike", "insurance_claim"),
+    ("Package arrived crushed. I paid with my card. Tracking 1Z999", "package_claim"),
+    ("Unknown charge on my card", "card_dispute"),
+    ("hello there", "other")])
+def test_stub_types_claims(text, kind):
+    from app.classifier import _stub
+    assert _stub(text)[0].case_type.value == kind

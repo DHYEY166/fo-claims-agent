@@ -146,10 +146,13 @@ def unexplained_signals(ex: Extraction, text: str) -> list[str]:
     return sorted(set(out))
 
 
-def route(ex: Extraction, tokens_used: int, text: str) -> Optional[str]:
+def route(ex: Extraction, tokens_used: int, text: str,
+          grounding_problems: Optional[list[str]] = None) -> Optional[str]:
     """Returns a reason to escalate, or None to proceed. All routing rules live here, not in the prompt."""
     if ex.contains_instructions:
         return "Forwarded content tried to instruct the agent"
+    if grounding_problems:  # a value the cited line doesn't support must never reach Fo
+        return "Extracted values don't match the cited lines: " + "; ".join(grounding_problems)[:300]
     signals = unexplained_signals(ex, text)
     if signals:
         return "Raw text has signals the claim fields don't explain: " + ", ".join(signals)
@@ -190,10 +193,10 @@ def process(case_id: str) -> None:
         tb.call("log", case_id, "classifier", "classified",
                 {"case_type": typ, "confidence": ex.confidence, "model": trace["model"],
                  "prompt_id": trace["prompt_id"]})
-        reason = route(ex, tokens, row["raw_text"])
+        reason = route(ex, tokens, row["raw_text"], trace.get("grounding_problems"))
         if reason:
             emit(case_id, "escalated_to_human", reason, "agent", detail=f"Model said {typ} at {ex.confidence:.2f}",
-                 trace=trace)
+                 grounding_problems=trace.get("grounding_problems", []), trace=trace)
             set_status(case_id, "escalated")
             return
         set_status(case_id, "classified")
