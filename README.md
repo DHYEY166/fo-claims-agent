@@ -2,28 +2,30 @@
 
 [![CI](https://github.com/DHYEY166/fo-claims-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/DHYEY166/fo-claims-agent/actions/workflows/ci.yml)
 
-A Fo agent that files card disputes and insurance or package claims for you and tracks each case until it's resolved, asking before every follow-up.
+A Fo agent that files card disputes and insurance or package claims for you, and hands the case back to you if the bank stays quiet. Nothing is sent until you approve it.
 
 Built for the Wajo GSD hackathon on [Fo](https://wajo.ai), Wajo's action agent, with Claude.
 
-**Demo video:** [watch the 83-second demo](docs/video/demo.mp4) (narrated with an AI voiceover). <!-- DEMO_LINK -->
+[![Watch the 83-second demo](docs/video/demo-thumbnail.png)](docs/video/demo.mp4)
 
-## Why it matters
+**[Watch the 83-second demo](docs/video/demo.mp4)** (narrated with an AI voiceover). <!-- DEMO_LINK -->
+
+## What is this?
 
 Getting money back is tedious. You have to find the receipt, work out who to contact, write the email, keep track of the deadline and chase the reply. Plenty of people never bother, even when they're owed the money. Fo can already make calls and send emails for you. This project adds what a claim needs on top of that: a case file, evidence for every field, and a person approving every message before Fo sends it.
 
-## What it does
+### What it does
 
 1. **Takes the claim.** You paste the email or describe what happened in the web dashboard.
-2. **Builds a case.** Claude reads it and fills in a case: the kind of claim (card dispute, insurance or package), who to contact, the amount, the merchant, the date and the order number. Each field cites the line it came from, the filing deadline is computed in code instead of guessed, and card numbers are masked before anything is stored.
+2. **Builds a case.** Claude reads it and fills in a case: the kind of claim (card dispute, insurance or package), who to contact, the amount, the merchant, the date and the order number. Each field cites the line it came from, the filing deadline is computed in code instead of guessed, and valid card numbers are masked before anything is stored.
 3. **Stops when it should.** A claim that's too vague, an email address nothing in the claim explains, or a request to move money sends the case to a person instead of moving ahead.
 4. **Asks before acting.** Every outbound email shows up as an approval card: who Fo will contact, what it will say, and what it costs. Nothing goes out until you click Approve.
 5. **Sends through Fo.** The approved email goes out through Fo's MCP server, which this app connects to over OAuth. The agent reads Fo's reply and marks the email sent only when Fo confirms it. If Fo holds the email for a second go-ahead, the card says so. If Fo's reply is unclear, the case goes to a person and is never marked sent.
-6. **Tracks the case.** After sending, it schedules a follow-up. If the bank doesn't answer, it flags the case for you, and any follow-up needs your approval again.
+6. **Hands the case back if the bank stays quiet.** After sending, it starts a follow-up timer. If no reply has come in when the timer runs out, the case comes back to you. The agent never contacts the bank again on its own, and any second email needs your approval again.
 
-Every outbound action, plus the follow-up, the reply and the resolution, goes into an audit log where each entry is chained to the one before it.
+Every outbound action, plus the follow-up timer, the reply and the resolution, goes into an audit log where each entry is chained to the one before it.
 
-## How it works
+### How it works
 
 ```mermaid
 flowchart LR
@@ -33,7 +35,7 @@ flowchart LR
   C -- ok --> D[Approval card]
   D -- Approve --> E[Fo via MCP + OAuth]
   E --> F{Fo's reply}
-  F -- sent --> G[Follow-up scheduled]
+  F -- sent --> G[Follow-up timer]
   F -- held --> D
   F -- unclear --> H
   G -- no reply when due --> H
@@ -42,9 +44,9 @@ flowchart LR
 - `api/`: FastAPI backend with SQLite. It holds the classifier (prompt `api/prompts/classify.v2.md`), the pipeline and its route checks, the Fo client and OAuth flow, and webhook signature checks.
 - `trust/`: the approval gate, redaction, and the hash-chained audit log.
 - `web/`: Next.js dashboard (case list, new claim, case timeline with approval cards, audit log). It runs against the real backend or an in-memory mock that shows a MOCK DATA badge.
-- `tests/`: trust and safety tests. `docs/`: the trust spec.
+- `tests/`: trust and safety tests. `docs/`: the trust spec and the demo video.
 
-## Trust by design
+### Trust by design
 
 The agent drafts and reasons, but code decides what is allowed to leave the computer. Every rule below lives in `trust/` and `api/app/pipeline.py`, not in a prompt, and each one has a test.
 
@@ -58,7 +60,7 @@ The agent drafts and reasons, but code decides what is allowed to leave the comp
 
 **Forwarded emails are treated as data, not instructions.** Pasted or forwarded text reaches the model wrapped as untrusted input. If the model reports that the text tries to instruct the agent, the case goes to a human. Code also checks the raw text, without relying on the model, for email addresses or money-transfer instructions (wire, Zelle, gift cards, crypto and similar) that the claim doesn't explain, and escalates if it finds any. After Fo's turn, the agent checks Fo's conversation for any recipient besides the allowed inbox. If it finds one, the case is marked failed.
 
-**PII stays out of storage.** Card numbers, SSNs and API keys are redacted before the claim text is saved. Email addresses are masked in the database, the API and server logs. Only the last 4 digits of a card are kept.
+**PII stays out of storage.** Valid card numbers (ones that pass the standard checksum), SSNs and API keys are redacted before the claim text is saved. Email addresses are masked in the database, the API and server logs. Only the last 4 digits of a card are kept.
 
 **Locked to this computer.** Fo sign-in and the approve and reject routes only answer a browser on this machine. Requests through a proxy or tunnel (forwarded headers, or a Host other than localhost) get 403.
 
@@ -72,19 +74,19 @@ The agent drafts and reasons, but code decides what is allowed to leave the comp
 - Fo asks a question.
 - Fo says it is holding the email for a go-ahead.
 - The daily cap is reached.
-- A follow-up comes due with no reply.
+- The follow-up timer runs out with no reply.
 
-A follow-up never contacts the bank on its own. Another send needs another approval.
+The follow-up timer never contacts the bank on its own. Another send needs another approval.
 
 **Honest failure states.** The dashboard says what actually happened:
-- If Fo's reply doesn't clearly say the email went out, the case says "Couldn't confirm Fo sent the email" and no follow-up is scheduled.
+- If Fo's reply doesn't clearly say the email went out, the case says "Couldn't confirm Fo sent the email" and no follow-up timer is started.
 - If Fo is still working after 10 minutes, the case escalates.
 - If Fo's turn fails, the case is marked failed.
 - If a case sits in contacting for 15 minutes with no result, it escalates.
 
 Mock mode is always labeled MOCK.
 
-## Setup
+## How do I run it?
 
 You need Python 3 and Node.js. Everything runs locally.
 
@@ -112,14 +114,52 @@ Run `npm run dev` without `NEXT_PUBLIC_API_BASE` to get the dashboard's built-in
 
 **Using real Fo.** Set `ANTHROPIC_API_KEY`, set `FO_TEST_TARGET` to a test inbox you own (it's the only address Fo will ever be asked to contact), set `FO_MOCK=0`, then open `http://localhost:8000/oauth/start` to connect your Fo account. Tokens are written only to the gitignored `.env`. Real sends are capped at 3 a day in code (`MAX_TEST_SENDS_PER_DAY`).
 
-## Tests
+## How do I run the tests?
 
-86 automated tests pass in CI (mock mode). To run them from the repo root:
+86 automated tests pass in CI (mock mode). These are the same commands the pipeline runs, from the repo root:
 
 ```bash
-pip install -r api/requirements.txt -r tests/trust/requirements.txt
-python -m pytest -q --ignore=tests/trust/test_api_live.py
+pip install -r api/requirements.txt -r tests/trust/requirements.txt pytest flake8 mypy
+FO_MOCK=1 python -m pytest -q --ignore=tests/trust/test_api_live.py
+python -m flake8 .
+python -m mypy
 ```
+
+CI also scans the full history for secrets with gitleaks and builds the dashboard (`cd web && npm ci && npm run build`).
+
+## What configuration does it need?
+
+The backend reads `.env` from the repo root (set `ENV_FILE` to point somewhere else). Start from `api/.env.example`.
+
+| Variable | Default | What it does |
+|---|---|---|
+| `FO_MOCK` | `1` | `1` simulates Fo. Real Fo needs `FO_MOCK=0` plus Fo auth (a `WAJO_API_KEY` or the OAuth token from `/oauth/start`); without auth it stays mock. |
+| `FO_TEST_TARGET` | empty | The one test inbox Fo may email. Required before `FO_MOCK=0`. |
+| `ANTHROPIC_API_KEY` | empty | Claude key for the classifier. |
+| `WAJO_API_KEY` | empty | Optional Fo API key (`wak_...`), as an alternative to OAuth. |
+| `FO_MCP_URL` | `https://mcp.api.wajo.ai/fo` | Fo's MCP endpoint. |
+| `FO_WEBHOOK_SECRET` | empty | Secret for verifying Fo webhook signatures. |
+| `CORS_ORIGINS` | `http://localhost:3100` | Allowed dashboard origins, comma separated. |
+| `DB_PATH` | `api/cases.db` | SQLite file for cases. |
+| `AUDIT_DB_PATH` | `audit.db` next to `DB_PATH` | Audit log file. |
+| `CONFIDENCE_THRESHOLD` | `0.7` | Below this, the case goes to a person. |
+| `FOLLOW_UP_SECONDS` | `20` | How long the follow-up timer waits before handing the case back. |
+| `CONTACT_STALE_SECONDS` | `900` | A case stuck in contacting this long escalates. |
+| `MAX_CASE_TOKENS` | `30000` | Per-case model token budget. Over it, the case escalates. |
+| `MOCK_STEP_SECONDS` | `2` | Delay between simulated Fo steps in mock mode. |
+
+Fixed in code on purpose: the Claude model is pinned in `api/app/config.py` (the `CLAUDE_MODEL` line in `.env.example` is not read), the daily cap of 3 real sends (`MAX_TEST_SENDS_PER_DAY`), and the filing windows (60 days for card disputes and package claims, 30 for insurance). The filing windows are defaults, not legal advice.
+
+## What are the known limitations?
+
+- **Email only.** Phone calls are blocked by the trust gate, even though Fo can make them.
+- **One allowed recipient.** The agent only ever emails our own test bank inbox. It has never contacted a real bank, carrier or insurer.
+- **No automatic follow-up.** When the timer runs out, the agent hands the case back to you. It doesn't send a second email by itself.
+- **Resolution in the demo is simulated.** The live Fo send in the video is real, sent to the test inbox. The bank's reply and the resolution are simulated.
+- **One live case type.** The live Fo run was a card dispute. Package and insurance claims use the same path, but we didn't run them against live Fo.
+- **Reading Fo's reply.** The agent decides whether Fo sent the email by reading Fo's reply text. When the wording is unclear, it treats the email as unconfirmed and hands the case to a person instead of guessing.
+- **Runs locally.** There is no hosted version and no Docker image. The approve and reject routes only answer a browser on the same machine.
+- **Evidence gathering isn't in the audit log.** It's internal and sends nothing, but it has no row.
 
 ## License
 
