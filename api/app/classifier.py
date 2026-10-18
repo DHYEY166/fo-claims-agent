@@ -26,6 +26,24 @@ def system_prompt() -> str:
                .replace("{schema}", json.dumps(Extraction.model_json_schema())))
 
 
+_NUM = re.compile(r"\d[\d,]*(?:\.\d+)?")
+
+
+def _amount_on_line(value: object, line: str) -> bool:
+    """Amounts match as numbers, so "780.00" is grounded by "$780" and "1200.00" by "$1,200"."""
+    try:
+        want = float(re.sub(r"[^\d.]", "", str(value or "")))
+    except ValueError:
+        return False
+    for n in _NUM.findall(line):
+        try:
+            if abs(float(n.replace(",", "")) - want) < 0.005:
+                return True
+        except ValueError:
+            continue
+    return False
+
+
 def ground(ex: Extraction, text: str) -> list[str]:
     """Code-side grounding check: a cited line must exist and contain the value."""
     lines = text.splitlines()
@@ -39,6 +57,10 @@ def ground(ex: Extraction, text: str) -> list[str]:
             problems.append(f"{f}: citation {ev.citation!r} is not an input line")
             continue
         line = lines[int(m.group(1)) - 1].lower()
+        if f == "amount":
+            if not _amount_on_line(ev.value, line):
+                problems.append(f"{f}: value {ev.value!r} not found on {ev.citation}")
+            continue
         probe = re.sub(r"[^a-z0-9]", "", (ev.value or "").lower())
         if f not in ("transaction_date", "reason", "counterparty", "currency") and probe and \
                 probe not in re.sub(r"[^a-z0-9]", "", line):
@@ -49,8 +71,11 @@ def ground(ex: Extraction, text: str) -> list[str]:
 def _stub(text: str) -> tuple[Extraction, dict[str, Any]]:
     t = text.lower()
     absent = {"status": "absent"}
-    kind = ("card_dispute" if any(w in t for w in ["charge", "card", "billed"]) else
-            "package_claim" if any(w in t for w in ["package", "tracking", "delivered"]) else "other")
+    # Package words first (a package claim can mention the card it was paid with), then insurance, then card.
+    kind = ("package_claim" if any(w in t for w in ["package", "tracking", "delivered", "parcel", "shipment"]) else
+            "insurance_claim" if any(w in t for w in ["insurance", "insurer", "policy", "deductible", "premium",
+                                                      "coverage"]) else
+            "card_dispute" if any(w in t for w in ["charge", "card", "billed"]) else "other")
     ex = Extraction.model_validate(dict(
         case_type=kind, confidence=0.75 if kind != "other" else 0.2,
         title=(text.strip().splitlines() or ["Untitled claim"])[0][:60],

@@ -27,6 +27,8 @@ CORS_ORIGINS = env("CORS_ORIGINS", "http://localhost:3100").split(",")
 CONFIDENCE_THRESHOLD = float(env("CONFIDENCE_THRESHOLD", "0.7"))
 FOLLOW_UP_SECONDS = int(env("FOLLOW_UP_SECONDS", "20"))
 MOCK_STEP_SECONDS = float(env("MOCK_STEP_SECONDS", "2"))
+# Mock only: the mock bank never replies, so the demo can show the timer, the follow-up draft and the hand-back.
+MOCK_BANK_SILENT = env("MOCK_BANK_SILENT", "0") == "1"
 
 # Per-case model spend ceiling (input+output tokens, repairs included). Over it, the case escalates.
 MAX_CASE_TOKENS = int(env("MAX_CASE_TOKENS", "30000"))

@@ -200,7 +200,7 @@ def test_post_send_steps_are_audited(tmp_path, monkeypatch):
     late = db.insert_case(type="card_dispute", title="t", status="follow_up_scheduled",
                           follow_up_at=(datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat())["id"]
     pipeline.run_follow_ups()
-    assert ("log", late, "follow_up_due_escalated") in logged
+    assert ("log", late, "follow_up_drafted") in logged  # first expiry drafts, it doesn't escalate
 
 
 def test_log_filter_masks_args_and_keeps_uvicorn_access_log_working(monkeypatch):
@@ -239,3 +239,33 @@ def test_init_refuses_old_db_with_duplicate_sends(tmp_path, monkeypatch):
     check = sqlite3.connect(path)
     assert check.execute("SELECT COUNT(*) FROM test_sends").fetchone()[0] == 2
     check.close()
+
+
+def test_route_escalates_on_grounding_problems():
+    assert pipeline.route(ex(), 100, "x", []) is None
+    assert "cited lines" in pipeline.route(ex(), 100, "x", ["amount: value '$640.00' not found on L2"])
+
+
+@pytest.mark.parametrize("text,kind", [
+    ("My renters insurance policy should cover the stolen bike", "insurance_claim"),
+    ("Package arrived crushed. I paid with my card. Tracking 1Z999", "package_claim"),
+    ("Unknown charge on my card", "card_dispute"),
+    ("hello there", "other")])
+def test_stub_types_claims(text, kind):
+    from app.classifier import _stub
+    assert _stub(text)[0].case_type.value == kind
+
+
+@pytest.mark.parametrize("value,line,ok", [
+    ("780.00", "Total charged: $780.", True),
+    ("1200.00", "Policy payout requested: $1,200", True),
+    ("89.99", "Charged $89.99 by STREAMFLIX", True),
+    ("640.00", "Charged $64.00 on Oct 2", False),
+    ("1200.00", "Order 120000 shipped", False)])
+def test_grounding_compares_amounts_as_numbers(value, line, ok):
+    from app.classifier import ground
+    e = ex(amount={"status": "present", "value": value, "citation": "L1"})
+    problems = ground(e, line)
+    assert (problems == []) is ok, problems
+    if not ok:
+        assert "cited lines" in pipeline.route(e, 1, line, problems)
