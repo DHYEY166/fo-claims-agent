@@ -13,6 +13,12 @@ const EVENT: Record<string, { label: string; Icon: typeof Check; tone: string }>
   approval_decided: { label: "Decided", Icon: Check, tone: "bg-emerald-50 text-emerald-700 ring-emerald-200" },
   fo_ask_authorized: { label: "Authorized", Icon: KeyRound, tone: "bg-accent-50 text-accent-700 ring-accent-100" },
   ask_fo_sent: { label: "Asked Fo", Icon: Send, tone: "bg-sky-50 text-sky-700 ring-sky-200" },
+  ask_fo_go_sent: { label: "Told Fo go", Icon: Send, tone: "bg-sky-50 text-sky-700 ring-sky-200" },
+  fo_turn_closed: { label: "Fo replied", Icon: Check, tone: "bg-zinc-50 text-zinc-700 ring-zinc-200" },
+  fo_send_outcome: { label: "Send outcome", Icon: Check, tone: "bg-zinc-50 text-zinc-700 ring-zinc-200" },
+  recipient_check: { label: "Recipient check", Icon: KeyRound, tone: "bg-zinc-50 text-zinc-700 ring-zinc-200" },
+  classified: { label: "Classified", Icon: Check, tone: "bg-zinc-50 text-zinc-700 ring-zinc-200" },
+  intake: { label: "Intake", Icon: Check, tone: "bg-zinc-50 text-zinc-700 ring-zinc-200" },
 };
 
 function parseDetail(d: string | null): Record<string, unknown> | null {
