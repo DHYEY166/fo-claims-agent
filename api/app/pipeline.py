@@ -487,7 +487,8 @@ def schedule_follow_up(case_id: str) -> None:
     if c["status"] == "awaiting_reply":
         set_status(case_id, "follow_up_scheduled", follow_up_at=at)
         emit(case_id, "follow_up_scheduled", "Follow-up scheduled", "agent", detail=f"If no reply by {at}",
-             fo_conversation_id=c.get("fo_conversation_id"))
+             mock=bool(c.get("mock")), fo_conversation_id=c.get("fo_conversation_id"))
+        tb.call("log", case_id, "agent", "follow_up_scheduled", {"follow_up_at": at, "mock": bool(c.get("mock"))})
 
 
 def on_counterparty_reply(case_id: str, text: str, conv: Optional[str] = None, mock: bool = False,
@@ -498,11 +499,15 @@ def on_counterparty_reply(case_id: str, text: str, conv: Optional[str] = None, m
     conv = conv or c.get("fo_conversation_id")
     emit(case_id, "reply_received", "Reply received", "counterparty", detail=text, mock=mock,
          fo_conversation_id=conv)
+    # Audit the fact of the reply, not its text: replies can carry personal data.
+    tb.call("log", case_id, "counterparty", "reply_received", {"chars": len(text or ""), "mock": mock,
+                                                               "conversationId": conv})
     if c["status"] == "follow_up_scheduled":
         set_status(case_id, "awaiting_reply", follow_up_at=None)
     if resolve:
         set_status(case_id, "resolved")
-        emit(case_id, "resolved", "Case resolved", "agent", detail=text, fo_conversation_id=conv)
+        emit(case_id, "resolved", "Case resolved", "agent", detail=text, mock=mock, fo_conversation_id=conv)
+        tb.call("log", case_id, "agent", "resolved", {"mock": mock})
 
 
 def run_follow_ups() -> None:
@@ -511,12 +516,14 @@ def run_follow_ups() -> None:
         emit(c["id"], "note", "Follow-up due, no reply yet", "agent", fo_conversation_id=c.get("fo_conversation_id"),
              detail="No webhook or reply arrived. Escalating for a human decision; follow-up sends need approval.")
         set_status(c["id"], "escalated", follow_up_at=None)
+        tb.call("log", c["id"], "system", "follow_up_due_escalated", {})
     # Reconciliation for missed deliveries: a case stuck in contacting with no Fo result.
     stale = (now - timedelta(seconds=config.CONTACT_STALE_SECONDS)).isoformat()
     for c in db.stale_in_status("contacting", stale):
         emit(c["id"], "note", "No Fo result recorded", "agent", fo_conversation_id=c.get("fo_conversation_id"),
              detail=f"Still contacting after {config.CONTACT_STALE_SECONDS}s. Escalating instead of guessing.")
         set_status(c["id"], "escalated")
+        tb.call("log", c["id"], "system", "contact_stale_escalated", {})
 
 
 def scheduler_loop(stop: threading.Event, every: int = 5) -> None:

@@ -105,3 +105,25 @@ def test_fo_send_outcome_never_assumes_sent():
     assert pipeline.fo_send_outcome("Thanks for the go-ahead. I sent the email.") == "unclear"
     assert pipeline.fo_send_outcome("Sent. It went to test bank inbox at 4:36 PM ET.") == "sent"
     assert pipeline.fo_send_outcome("Done, message id <x@wajo.ai>.") == "sent"
+
+
+def test_post_send_steps_are_audited(tmp_path, monkeypatch):
+    from datetime import datetime, timedelta, timezone
+
+    from app import config, db
+    monkeypatch.setattr(config, "DB_PATH", str(tmp_path / "c.db"))
+    db.init()
+    logged: list = []
+    monkeypatch.setattr(tb, "call", lambda m, *a, **k: logged.append((m, a[0], a[2])) if m == "log" else None)
+
+    cid = db.insert_case(type="card_dispute", title="t", status="awaiting_reply", mock=1)["id"]
+    pipeline.schedule_follow_up(cid)
+    pipeline.on_counterparty_reply(cid, "We got it. Ref 123.", mock=True, resolve=True)
+    assert [e for m, c, e in logged if c == cid] == ["follow_up_scheduled", "reply_received", "resolved"]
+    steps = {e["kind"]: e for e in db.list_events(cid)}
+    assert steps["follow_up_scheduled"]["mock"] and steps["resolved"]["mock"]
+
+    late = db.insert_case(type="card_dispute", title="t", status="follow_up_scheduled",
+                          follow_up_at=(datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat())["id"]
+    pipeline.run_follow_ups()
+    assert ("log", late, "follow_up_due_escalated") in logged
