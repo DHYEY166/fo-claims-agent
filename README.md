@@ -42,7 +42,7 @@ flowchart LR
 - `api/`: FastAPI backend with SQLite. It holds the classifier (prompt `api/prompts/classify.v2.md`), the pipeline and its route checks, the Fo client and OAuth flow, and webhook signature checks.
 - `trust/`: the approval gate, redaction, and the hash-chained audit log.
 - `web/`: Next.js dashboard (case list, new claim, case timeline with approval cards, audit log). It runs against the real backend or an in-memory mock that shows a MOCK DATA badge.
-- `tests/`: trust and safety tests. `docs/`: the trust spec, demo script and story docs.
+- `tests/`: trust and safety tests. `docs/`: the trust spec.
 
 ## Trust by design
 
