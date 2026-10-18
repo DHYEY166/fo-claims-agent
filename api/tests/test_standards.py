@@ -191,3 +191,22 @@ def test_log_filter_masks_args_and_keeps_uvicorn_access_log_working(monkeypatch)
                               ("someone.private@example.com",), None)
     f.filter(plain)
     assert "someone.private" not in plain.getMessage()
+
+
+def test_init_refuses_old_db_with_duplicate_sends(tmp_path, monkeypatch):
+    import sqlite3
+    import pytest
+    from app import config, db
+    path = tmp_path / "dupes.db"
+    old = sqlite3.connect(path)
+    old.execute("CREATE TABLE test_sends (id INTEGER PRIMARY KEY AUTOINCREMENT, case_id TEXT, ts TEXT)")
+    old.executemany("INSERT INTO test_sends(case_id, ts) VALUES (?, ?)",
+                    [("case_dup", "2026-10-17T20:00:00+00:00"), ("case_dup", "2026-10-17T20:05:00+00:00")])
+    old.commit()
+    old.close()
+    monkeypatch.setattr(config, "DB_PATH", str(path))
+    with pytest.raises(RuntimeError, match="case_dup"):
+        db.init()
+    check = sqlite3.connect(path)
+    assert check.execute("SELECT COUNT(*) FROM test_sends").fetchone()[0] == 2
+    check.close()
