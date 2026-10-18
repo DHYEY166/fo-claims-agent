@@ -103,6 +103,19 @@ def test_fo_send_outcome_never_assumes_sent():
     assert pipeline.fo_send_outcome("Sent it, as you approved.") == "sent"
     assert pipeline.fo_send_outcome("I've sent it. I'll hold off on any follow-up.") == "sent"
     assert pipeline.fo_send_outcome("Thanks for the go-ahead. I sent the email.") == "unclear"
+
+
+def test_fo_send_outcome_sent_after_period_without_space():
+    # Exact Fo reply from the Oct 18 live take: "Sent." ran into the previous sentence.
+    reply = ("Sending the one test email to your inbox now.Sent. One email to test bank inbox with all five facts "
+             "(STREAMFLIX, $89.99, card 4242, Oct 15, SF-20261015-77), written as the customer's dispute and asking "
+             "for receipt confirmation and a reference number.\n\nHeads up: a similar test went to that same address "
+             "yesterday evening with card ending 4417, so you'll see two emails there. Nothing else was contacted and "
+             "no money moved.")
+    assert pipeline.fo_send_outcome(reply) == "sent"
+    assert pipeline.fo_send_outcome("Drafted it.Sent to nobody yet, want me to send it?") == "unclear"
+    assert pipeline.fo_send_outcome("I have not sent it.") == "unclear"
+    assert pipeline.fo_send_outcome("Ready.Not sent until you say go.") == "held"
     assert pipeline.fo_send_outcome("Sent. It went to test bank inbox at 4:36 PM ET.") == "sent"
     assert pipeline.fo_send_outcome("Done, message id <x@wajo.ai>.") == "sent"
 
