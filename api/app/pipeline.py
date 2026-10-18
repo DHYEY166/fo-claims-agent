@@ -397,7 +397,8 @@ def _finish_fo_turn(case_id: str, action: dict, fo: Any, first: dict, conv: Opti
     schedule_follow_up(case_id)
 
 
-_HELD = re.compile(r"go-ahead|go ahead|say go|\bheld\b|\bholding (it|the email|this)\b|waiting for your|"
+_HELD = re.compile(r"go-ahead|go ahead|say go|\bheld (it|the email|the message|this|that|your email)\b|"
+                   r"\bheld (for|until)\b|\bholding (it|the email|this)\b|waiting for your|"
                    r"before i send|want me to send|shall i send|should i send|confirm (before|and i)", re.I)
 _SENT = re.compile(r"\b(i('ve| have)?|fo( has)?) (just )?sent\b|\b(email|message|it) (was|has been|is) sent\b|"
                    r"\bsent (it|the email|the message|your email)\b|\bwent out\b|(^|[.!?])\W*sent\b|\bmessage id\b",
