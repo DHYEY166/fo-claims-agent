@@ -1,4 +1,5 @@
 """Escalation copy names the company on the case ("State Farm stayed quiet..."), not always "the bank"."""
+import json
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -63,3 +64,26 @@ def test_clean_cuts_at_a_word_boundary(raw, n, want):
     out = pipeline._clean(raw, n)
     assert out == want
     assert out is None or len(out) <= n
+
+
+def test_word_boundary_cut_reaches_the_fo_request(monkeypatch):
+    """_clean also builds Fo's instructions: the cut name goes there too, and a spaceless name is cut at 40, not
+    dropped."""
+    long_name = "Liberty Mutual Personal Insurance Company of America"
+    spaceless = "B" * 55
+    ev = {"merchant": {"status": "present", "value": spaceless}}
+    monkeypatch.setattr(db, "get_case_row", lambda _id: {"evidence": json.dumps(ev)})
+    case = {"id": "case_x", "type": "insurance_claim", "amount_cents": 78000, "counterparty": long_name}
+    for follow_up in (False, True):
+        req = pipeline.build_fo_request(case, "test bank inbox", follow_up=follow_up)
+        assert "with Liberty Mutual Personal Insurance" in req
+        assert "Liberty Mutual Personal Insurance Comp" not in req
+        assert f"- merchant: {'B' * 40}\n" in req or req.endswith(f"- merchant: {'B' * 40}")
+        assert "B" * 41 not in req
+
+
+def test_spaceless_and_exact_forty():
+    assert pipeline._clean("C" * 41) == "C" * 40
+    assert pipeline._clean("D" * 40) == "D" * 40
+    forty = "Exactly forty characters long okay right"
+    assert len(forty) == 40 and pipeline._clean(forty + " tail") == forty
