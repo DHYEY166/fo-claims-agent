@@ -15,6 +15,8 @@ export interface Case {
   created_at: string;
   updated_at: string;
   confidence?: number | null; // 0..1
+  fo_sent?: boolean; // optional case-level send confirmation
+  held?: boolean;    // optional case-level "held by Fo" flag
   mock?: boolean;
 }
 
@@ -40,6 +42,10 @@ export interface CaseEvent {
   transcript?: TranscriptTurn[];
   email?: EmailBody;
   fo_conversation_id?: string;
+  proposed_email?: { to?: string | null; body?: string | null }; // real backend, on the "Fo replied" step
+  fo_sent?: boolean; // future backend signal: true = Fo confirmed the send, false = not sent
+  held?: boolean;    // future backend signal: Fo is holding the draft for the user's go-ahead
+  status?: string;   // future backend signal on a step, e.g. "escalated"
   reason?: string | string[]; // escalated_to_human: why the agent stopped (optional; may also be in the title after ":")
   trace?: Trace;
   mock?: boolean;
@@ -56,6 +62,8 @@ export interface Trace {
   model?: string;
   prompt_id?: string;
   grounding_problems?: string[]; // real backend: extraction values not grounded in the source
+  tool?: string;                 // real backend, e.g. "ask_fo/get_fo_reply"
+  mock?: boolean;
 }
 
 export type CaseWithEvents = Case & { events: CaseEvent[] };
@@ -76,6 +84,8 @@ export interface ProposedAction {
   spend_cents?: number | null;
   approval_id?: string;
   summary?: string; // optional one-line human summary; UI uses it as the headline when present
+  kind?: "fo_go" | (string & {}); // "fo_go": second approval that tells Fo "go" in the same conversation
+  conversation_id?: string;
 }
 
 /** Evidence fields arrive either as plain values or as {value, status, citation}. */
