@@ -14,6 +14,7 @@ for p in (str(_root), os.environ.get("TRUST_PATH", "")):
         break
 
 from trust.gate import Trust, ApprovalRequired, ApprovalConflict, TargetNotAllowed, SpendLimitExceeded  # noqa
+from trust.gate import APPROVAL_TTL_S  # noqa
 from trust.poll import poll_fo_reply  # noqa
 from trust.redact import redact  # noqa
 

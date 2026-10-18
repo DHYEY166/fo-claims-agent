@@ -281,7 +281,15 @@ def decide(case_id: str, event_id: str, decision: str, note: Optional[str] = Non
         raise ValueError("no pending approval with that id on this case")
     if not db.claim_pending(event_id):
         raise ValueError("approval already decided")
-    tb.call("decide", ev["proposed_action"]["approval_id"], "approved" if decision == "approve" else "rejected")
+    try:
+        tb.call("decide", ev["proposed_action"]["approval_id"], "approved" if decision == "approve" else "rejected")
+    except tb.ApprovalConflict as e:
+        # The card is already claimed above, so it leaves the screen; the caller gets a 409, not a 500.
+        bus.publish("case_event", db.get_event(event_id))
+        if str(e) == "expired":
+            expire_approval(case_id, ev)
+            raise ValueError("approval expired: nothing was sent, and the case is handed back to you") from e
+        raise ValueError(f"approval conflict: {e}") from e
     bus.publish("case_event", db.get_event(event_id))
     follow_up = ev["proposed_action"].get("kind") == "follow_up"
     if decision == "reject" and follow_up:
@@ -588,8 +596,34 @@ def request_follow_up(case_id: str) -> bool:
     return True
 
 
+def expire_approval(case_id: str, ev: dict) -> None:
+    """An approval card ran past its TTL. Nothing was sent from it: say so, and hand the case back.
+    The caller must already have claimed the card (db.claim_pending), so this runs once per card."""
+    aid = (ev.get("proposed_action") or {}).get("approval_id")
+    tb.call("log", case_id, "system", "approval_expired", {"event_id": ev["id"], "approval_id": aid})
+    emit(case_id, "escalated_to_human", "Approval expired, case handed back to you", "agent",
+         fo_conversation_id=db.get_case(case_id).get("fo_conversation_id"),
+         detail=f"The approval card was open longer than {tb.APPROVAL_TTL_S // 60} minutes, so it expired. "
+                "Nothing was sent from it. The next step is yours.")
+    if db.get_case(case_id)["status"] != "escalated":
+        try:
+            set_status(case_id, "escalated", follow_up_at=None)
+        except IllegalTransition:
+            log.warning("expired approval on %s: case status %s left as is", case_id, db.get_case(case_id)["status"])
+
+
+def expire_stale_approvals(now: datetime) -> None:
+    """Sweep: cards nobody clicked within the TTL are closed and their cases escalated."""
+    cutoff = (now - timedelta(seconds=tb.APPROVAL_TTL_S)).isoformat()
+    for ev in db.pending_approvals_before(cutoff):
+        if db.claim_pending(ev["id"]):
+            bus.publish("case_event", db.get_event(ev["id"]))
+            expire_approval(ev["case_id"], ev)
+
+
 def run_follow_ups() -> None:
     now = datetime.now(timezone.utc)
+    expire_stale_approvals(now)
     for c in db.due_follow_ups(now.isoformat()):
         emit(c["id"], "note", "Follow-up due, no reply yet", "agent", fo_conversation_id=c.get("fo_conversation_id"),
              detail="No webhook or reply arrived.")
