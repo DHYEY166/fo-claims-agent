@@ -26,21 +26,31 @@ def system_prompt() -> str:
                .replace("{schema}", json.dumps(Extraction.model_json_schema())))
 
 
-_NUM = re.compile(r"\d[\d,]*(?:\.\d+)?")
+_CUR = r"(?:[$\u20ac\u00a3]|\b(?:USD|EUR|GBP|CAD)\b)"
+_AMT = r"\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?"
+# A money token: a whole number with a currency marker next to it, or one with exactly two decimals.
+# Numbers inside IDs ("LMN-4471-22"), dates, ZIPs or tracking numbers never count.
+_MONEY = re.compile(rf"(?<![\w.,-])(?:{_CUR}\s?(?P<a>{_AMT})|(?P<b>{_AMT})\s?{_CUR}|(?P<c>\d[\d,]*\.\d{{2}}))"
+                    r"(?![\w.,-]*\d)", re.IGNORECASE)
+_VALUE = re.compile(rf"\s*{_CUR}?\s?({_AMT})\s*{_CUR}?\s*", re.IGNORECASE)
+
+
+def _cents(num: str) -> int:
+    whole, _, frac = num.replace(",", "").partition(".")
+    return int(whole) * 100 + int((frac + "00")[:2])
 
 
 def _amount_on_line(value: object, line: str) -> bool:
-    """Amounts match as numbers, so "780.00" is grounded by "$780" and "1200.00" by "$1,200"."""
-    try:
-        want = float(re.sub(r"[^\d.]", "", str(value or "")))
-    except ValueError:
+    """The claimed amount must equal a money token on the cited line, to the cent.
+    "780.00" is grounded by "$780" and "1200.00" by "$1,200", but not by "order 780" or "LMN-780-22"."""
+    m = _VALUE.fullmatch(str(value or ""))
+    if not m:
         return False
-    for n in _NUM.findall(line):
-        try:
-            if abs(float(n.replace(",", "")) - want) < 0.005:
-                return True
-        except ValueError:
-            continue
+    want = _cents(m.group(1))
+    for t in _MONEY.finditer(line):
+        num = t.group("a") or t.group("b") or t.group("c")
+        if num and _cents(num) == want:
+            return True
     return False
 
 
