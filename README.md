@@ -6,7 +6,7 @@ A Fo agent that files card disputes and insurance or package claims for you and 
 
 Built for the Wajo GSD hackathon on [Fo](https://wajo.ai), Wajo's action agent, with Claude.
 
-**Demo video:** link coming Monday, Oct 19. <!-- DEMO_LINK -->
+**Demo video:** [watch the 83-second demo](docs/video/demo.mp4) (narrated with an AI voiceover). <!-- DEMO_LINK -->
 
 ## Why it matters
 
@@ -114,7 +114,7 @@ Run `npm run dev` without `NEXT_PUBLIC_API_BASE` to get the dashboard's built-in
 
 ## Tests
 
-71 automated tests pass in CI (mock mode). To run them from the repo root:
+86 automated tests pass in CI (mock mode). To run them from the repo root:
 
 ```bash
 pip install -r api/requirements.txt -r tests/trust/requirements.txt
