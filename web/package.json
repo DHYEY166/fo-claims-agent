@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "check": "npm run lint && npm run typecheck",
-    "test:unit": "rm -rf /tmp/esc-copy && tsc lib/escalationCopy.ts --outDir /tmp/esc-copy --module es2020 --target es2020 --moduleResolution bundler --skipLibCheck --types node && ESC_COPY_JS=/tmp/esc-copy/escalationCopy.js node --test tests/"
+    "test:unit": "rm -rf /tmp/esc-copy && tsc lib/escalationCopy.ts --outDir /tmp/esc-copy --module es2020 --target es2020 --moduleResolution bundler --skipLibCheck --types node && ESC_COPY_JS=/tmp/esc-copy/escalationCopy.js node --test tests/",
+    "test:recording": "rm -rf /tmp/gsd-rec-test && tsc --outDir /tmp/gsd-rec-test --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck tests/recording-mode.test.ts && node --test /tmp/gsd-rec-test/tests/recording-mode.test.js"
   },
   "dependencies": {
     "geist": "^1.8.1",

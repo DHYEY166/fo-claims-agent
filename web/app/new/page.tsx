@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { ArrowRight, ClipboardPaste, Copy, Check, FileUp, Forward, Loader2, Paperclip, ShieldCheck, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { cx } from "@/components/ui";
+import { RECORDING_MODE } from "@/lib/demo";
 
 type Tab = "paste" | "upload" | "forward";
 const FORWARD_ADDR = "claims@gsd-demo.example";
@@ -36,11 +37,12 @@ export default function NewClaimPage() {
     } catch (e) { setErr(String(e)); setBusy(false); }
   }
 
-  const tabs: { id: Tab; label: string; Icon: typeof FileUp }[] = [
+  const allTabs: { id: Tab; label: string; Icon: typeof FileUp }[] = [
     { id: "paste", label: "Paste", Icon: ClipboardPaste },
     { id: "upload", label: "Upload", Icon: FileUp },
     { id: "forward", label: "Forward", Icon: Forward },
   ];
+  const tabs = allTabs.filter((t) => !(RECORDING_MODE && t.id === "forward")); // the Forward tab shows an inbox address
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
