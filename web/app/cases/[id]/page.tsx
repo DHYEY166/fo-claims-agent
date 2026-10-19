@@ -10,7 +10,7 @@ import { escalationFooter } from "@/lib/escalationCopy";
 import { useLive } from "@/lib/useLive";
 import { TraceRow } from "@/components/TraceRow";
 import { EvidenceGrid } from "@/components/Evidence";
-import { DEMO_HIDE_CALLS, isCallEvent, maskAddress, maskEmails } from "@/lib/demo";
+import { DEMO_HIDE_CALLS, RECORDING_MODE, isCallEvent, maskAddress, maskEmails } from "@/lib/demo";
 import type { CaseEvent, CaseWithEvents } from "@/lib/types";
 import { ConfidenceChip, LiveDot, SimBadge, StatusPill, TypeIcon, cx, describeAction, fmtTime, money, relTime, typeLabel, useNow } from "@/components/ui";
 
@@ -107,7 +107,7 @@ export default function CaseDetail({ params }: { params: Promise<{ id: string }>
               <div className="flex items-start gap-3 px-5 py-4">
                 <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
                 <div className="min-w-0">
-                  <div className="text-sm font-semibold text-amber-900">{escalation.title}</div>
+                  <div className="text-sm font-semibold text-amber-900">{maskEmails(escalation.title)}</div>
                   {escReasons.length > 0 && (
                     <p className="mt-1.5 text-sm text-amber-900"><span className="font-medium">Reason:</span> {escReasons.map(maskEmails).join("; ")}</p>
                   )}
@@ -141,8 +141,8 @@ export default function CaseDetail({ params }: { params: Promise<{ id: string }>
           <div className="rounded-xl border border-zinc-200 bg-white p-4 text-sm shadow-sm">
             <h3 className="mb-3 text-xs font-medium uppercase tracking-wider text-zinc-500">Details</h3>
             <dl className="space-y-2.5">
-              <Row k="Case ID"><span className="font-mono text-xs">{data.id}</span></Row>
-              <Row k="Counterparty">{data.counterparty ?? "—"}</Row>
+              {!RECORDING_MODE && <Row k="Case ID"><span className="font-mono text-xs">{data.id}</span></Row>}
+              <Row k="Counterparty">{data.counterparty ? maskEmails(data.counterparty) : "—"}</Row>
               <Row k="Amount"><span className="tabular-nums">{data.amount_cents ? money(data.amount_cents, data.currency) : "—"}</span></Row>
               <Row k="Opened">{fmtTime(data.created_at)}</Row>
               <Row k="Updated">{relTime(data.updated_at, now)}</Row>
@@ -397,7 +397,7 @@ function TimelineItem({ e, last, fresh, now, sendState, sentLater }: { e: CaseEv
         {isFoReport ? null : e.pending ? <p className="mt-1.5 text-sm text-amber-700">Waiting for your decision — see the approval card above.</p>
           : e.detail && !(e.evidence && Object.keys(e.evidence).length) && <p className={cx("mt-1.5 whitespace-pre-wrap text-sm leading-relaxed", confirmed ? "rounded-md bg-emerald-50 px-3 py-2 text-emerald-800" : e.kind === "escalated_to_human" ? "rounded-md bg-amber-50 px-3 py-2 text-amber-900" : "text-zinc-600")}>{maskEmails(prettyDetail(e.detail))}</p>}
         <EvidenceGrid evidence={e.evidence} />
-        {e.fo_conversation_id && <p className="mt-1 font-mono text-[11px] text-zinc-400">fo conversation · {e.fo_conversation_id}</p>}
+        {e.fo_conversation_id && !RECORDING_MODE && <p className="mt-1 font-mono text-[11px] text-zinc-400">fo conversation · {e.fo_conversation_id}</p>}
         <TraceRow trace={e.trace} />
         {expandable && (
           <button onClick={() => setOpen((o) => !o)} data-expand

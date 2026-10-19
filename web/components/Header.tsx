@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { Plus } from "lucide-react";
 import { API_BASE, DEMO_DEPLOY, IS_MOCK } from "@/lib/api";
 import { cx } from "./ui";
+import { RECORDING_MODE } from "@/lib/demo";
 
 export function Header() {
   const path = usePathname();
@@ -30,7 +31,7 @@ export function Header() {
             <span title={DEMO_DEPLOY ? "Public demo: all data is simulated in this app. Nothing reaches a real agent." : "Data is served by the in-app mock layer. Set NEXT_PUBLIC_API_BASE to use the real backend."}
               className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1 font-mono text-[11px] font-semibold tracking-wider text-amber-800">{DEMO_DEPLOY ? "DEMO DATA" : "MOCK DATA"}</span>
           )}
-          {!IS_MOCK && (
+          {!IS_MOCK && !RECORDING_MODE && (
             <span title="Connected to the real backend" className="inline-flex items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-2 py-1 font-mono text-[11px] text-zinc-600">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />API {API_BASE.replace(/^https?:\/\//, "")}
             </span>

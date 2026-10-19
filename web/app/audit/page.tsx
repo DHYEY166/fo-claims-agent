@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Check, Hand, Link2, Loader2, Send, ShieldCheck, ShieldX, KeyRound } from "lucide-react";
 import { api } from "@/lib/api";
 import { useLive } from "@/lib/useLive";
-import { maskEmails } from "@/lib/demo";
+import { RECORDING_MODE, maskEmails } from "@/lib/demo";
 import type { AuditResponse } from "@/lib/types";
 import { LiveDot, cx, fmtTime, relTime, toDate, useNow } from "@/components/ui";
 
@@ -30,6 +30,9 @@ const EVENT: Record<string, { label: string; Icon: typeof Check; tone: string }>
 function parseDetail(d: string | null): Record<string, unknown> | null {
   if (!d) return null; try { const v = JSON.parse(d); return v && typeof v === "object" ? v : { detail: d }; } catch { return { detail: d }; }
 }
+
+// Static class strings so Tailwind keeps both. Recording mode drops the Case and Detail columns.
+const COLS = RECORDING_MODE ? "grid-cols-[48px_130px_120px_80px_minmax(0,1fr)]" : "grid-cols-[48px_130px_120px_150px_80px_minmax(0,1fr)_150px]";
 
 export default function AuditPage() {
   const [data, setData] = useState<AuditResponse | null>(null);
@@ -58,8 +61,8 @@ export default function AuditPage() {
       </div>
 
       <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
-        <div className="grid grid-cols-[48px_130px_120px_150px_80px_minmax(0,1fr)_150px] items-center gap-4 border-b border-zinc-100 bg-zinc-50/60 px-5 py-2.5 text-[11px] font-medium uppercase tracking-wider text-zinc-500">
-          <span>#</span><span>When</span><span>Step</span><span>Case</span><span>Actor</span><span>Detail</span><span>Row hash</span>
+        <div className={`grid ${COLS} items-center gap-4 border-b border-zinc-100 bg-zinc-50/60 px-5 py-2.5 text-[11px] font-medium uppercase tracking-wider text-zinc-500`}>
+          <span>#</span><span>When</span><span>Step</span>{!RECORDING_MODE && <span>Case</span>}<span>Actor</span>{!RECORDING_MODE && <span>Detail</span>}<span>Row hash</span>
         </div>
         {error && <div className="px-5 py-6 text-sm text-rose-600">Couldn&apos;t load audit log: {error}</div>}
         {!data && !error && <div className="flex items-center gap-2 px-5 py-6 text-sm text-zinc-500"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>}
@@ -69,17 +72,17 @@ export default function AuditPage() {
             const m = EVENT[r.event] ?? { label: r.event.replace(/_/g, " "), Icon: Link2, tone: "bg-zinc-100 text-zinc-600 ring-zinc-200" };
             const d = parseDetail(r.detail);
             return (
-              <li key={r.id} className="grid grid-cols-[48px_130px_120px_150px_80px_minmax(0,1fr)_150px] items-center gap-4 border-b border-zinc-100 px-5 py-2.5 text-sm last:border-0">
+              <li key={r.id} className={`grid ${COLS} items-center gap-4 border-b border-zinc-100 px-5 py-2.5 text-sm last:border-0`}>
                 <span className="font-mono text-xs tabular-nums text-zinc-400">{r.id}</span>
                 <span className="text-xs text-zinc-500" title={fmtTime(r.ts)}>{relTime(toDate(r.ts).toISOString(), now)}</span>
                 <span><span className={cx("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ring-1", m.tone)}><m.Icon className="h-3 w-3" />{m.label}</span></span>
-                <Link href={`/cases/${r.case_id}`} className="truncate font-mono text-xs text-accent-600 hover:underline">{r.case_id}</Link>
+                {!RECORDING_MODE && <Link href={`/cases/${r.case_id}`} className="truncate font-mono text-xs text-accent-600 hover:underline">{r.case_id}</Link>}
                 <span className="text-xs text-zinc-600">{r.actor}</span>
-                <span className="flex min-w-0 flex-wrap gap-1">
+                {!RECORDING_MODE && <span className="flex min-w-0 flex-wrap gap-1">
                   {d && Object.entries(d).filter(([k]) => k !== "approval_id").map(([k, v]) => (
                     <span key={k} className="max-w-full truncate rounded bg-zinc-100 px-1.5 py-0.5 text-[11px] text-zinc-600"><span className="text-zinc-400">{k}</span> {maskEmails(String(v))}</span>
                   ))}
-                </span>
+                </span>}
                 <span className="truncate font-mono text-[11px] text-zinc-400" title={r.row_hash}>{r.row_hash.slice(0, 16)}…</span>
               </li>
             );
