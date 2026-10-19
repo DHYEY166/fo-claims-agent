@@ -128,7 +128,7 @@ def test_reject_path_hands_case_back(env):
 
 
 def test_real_follow_up_has_its_own_slot_and_counts_toward_cap(env):
-    day = "2026-10-18"
+    day = datetime.now(timezone.utc).date().isoformat()  # same UTC day the pipeline counts sends by
     assert db.reserve_test_send("case_a", day, 3)
     assert db.reserve_test_send(pipeline.follow_up_send_key("case_a"), day, 3)
     assert not db.reserve_test_send(pipeline.follow_up_send_key("case_a"), day, 3)  # one follow-up ever
